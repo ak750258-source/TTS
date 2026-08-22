@@ -45,6 +45,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
     // Firebase Firestore Live Cloud Sync Status
     val isCloudConnected: StateFlow<Boolean> = repository.isCloudConnected
     val syncStatus: StateFlow<String> = repository.syncStatus
+    val onlineCandidateIds: StateFlow<Set<Long>> = repository.onlineCandidateIds
 
     // Navigation State
     private val _currentTab = MutableStateFlow(AppTab.HOME)
@@ -525,7 +526,49 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun clearAllChatMessages() {
+        viewModelScope.launch {
+            repository.clearAllChatMessages()
+            showSnackbar("कमेटी चैट के सभी पुराने संदेश साफ़ कर दिए गए!")
+        }
+    }
+
+    // Complete Application Data Wipe / Reset ("Old data delete karne par poori application saaf ho jaaye")
+    fun clearEntireApplicationData() {
+        viewModelScope.launch {
+            repository.clearAllApplicationData()
+            _currentActiveMember.value = null
+            showSnackbar("संपूर्ण एप्लिकेशन डेटा (लोकल एवं क्लाउड) पूर्णतः साफ़ कर दिया गया!")
+        }
+    }
+
+    fun clearAllMeetings() {
+        viewModelScope.launch {
+            repository.clearAllMeetings()
+            showSnackbar("सभी बैठक रिकॉर्ड्स हटा दिए गए!")
+        }
+    }
+
+    fun clearAllNotices() {
+        viewModelScope.launch {
+            repository.clearAllNotices()
+            showSnackbar("सभी नोटिस रिकॉर्ड्स हटा दिए गए!")
+        }
+    }
+
+    fun clearAllDocuments() {
+        viewModelScope.launch {
+            repository.clearAllDocuments()
+            showSnackbar("सभी दस्तावेज़ रिकॉर्ड्स हटा दिए गए!")
+        }
+    }
+
     fun setActiveMember(member: Member?) {
         _currentActiveMember.value = member
+        if (member != null) {
+            viewModelScope.launch {
+                repository.updateCandidatePresence(member.id, member.fullName, true)
+            }
+        }
     }
 }

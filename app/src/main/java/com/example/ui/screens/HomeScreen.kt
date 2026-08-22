@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Event
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolunteerActivism
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -54,6 +56,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -110,6 +116,7 @@ fun HomeScreen(
     totalDonations: Double,
     activeMember: Member?,
     isAdminLoggedIn: Boolean,
+    onlineCandidateIds: Set<Long> = emptySet(),
     onOpenAdminLogin: () -> Unit,
     onLogoutAdmin: () -> Unit,
     onNavigateToTab: (AppTab) -> Unit,
@@ -120,9 +127,11 @@ fun HomeScreen(
     onSelectMemberForID: (Member) -> Unit,
     onSelectDocument: (OfficialDocument) -> Unit,
     onSelectMeeting: (Meeting) -> Unit,
+    onClearEntireData: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var showClearAllConfirmDialog by remember { mutableStateOf(false) }
     val upcomingMeeting = meetings.firstOrNull { it.status == "Upcoming" }
     val urgentNotice = notices.firstOrNull { it.priority == "HIGH" || it.isPinned } ?: notices.firstOrNull()
 
@@ -294,11 +303,22 @@ fun HomeScreen(
                     }
 
                     if (isAdminLoggedIn) {
-                        OutlinedButton(
-                            onClick = onLogoutAdmin,
-                            modifier = Modifier.testTag("admin_logout_btn")
-                        ) {
-                            Text("लॉगआउट", fontSize = 11.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedButton(
+                                onClick = { showClearAllConfirmDialog = true },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
+                                modifier = Modifier.testTag("admin_clear_all_btn")
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFDC2626))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("डेटा साफ़ करें", fontSize = 11.sp, color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                            }
+                            OutlinedButton(
+                                onClick = onLogoutAdmin,
+                                modifier = Modifier.testTag("admin_logout_btn")
+                            ) {
+                                Text("लॉगआउट", fontSize = 11.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                            }
                         }
                     } else {
                         Button(
@@ -384,9 +404,13 @@ fun HomeScreen(
                                     } else {
                                         MemberAvatar(
                                             name = performer.fullName,
+                                            photoUri = performer.photoUri,
+                                            photoResName = performer.photoResName,
                                             size = 64.dp,
                                             textSize = 22,
-                                            colorIndex = performer.avatarColorIndex
+                                            colorIndex = performer.avatarColorIndex,
+                                            isOnline = onlineCandidateIds.contains(performer.id),
+                                            showOnlineIndicator = true
                                         )
                                     }
                                 }
@@ -686,6 +710,40 @@ fun HomeScreen(
         item {
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showClearAllConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirmDialog = false },
+            title = {
+                Text(
+                    text = "⚠️ संपूर्ण पुराना डेटा साफ़ करें? (Wipe All App Data)",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFDC2626)
+                )
+            },
+            text = {
+                Text(
+                    text = "क्या आप निश्चित रूप से TTS 12 रबी-उल-अव्वल एप्लिकेशन का सभी पुराना डेटा (लोकल कैश व क्लाउड सर्वर सहित) पूर्णतः साफ़ करना चाहते हैं?\n\nइसके पश्चात सदस्य, संदेश, बैठक, नोटिस व चंदा का पुराना डेटा साफ़ हो जाएगा और एप्लिकेशन बिल्कुल नई स्थिति में प्रारंभ होगी।"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showClearAllConfirmDialog = false
+                        onClearEntireData()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                ) {
+                    Text("हाँ, पूरा डेटा साफ़ करें", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllConfirmDialog = false }) {
+                    Text("रद्द करें")
+                }
+            }
+        )
     }
 }
 

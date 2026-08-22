@@ -101,6 +101,7 @@ import com.example.ui.theme.TextSecondaryGreen
 fun MembersScreen(
     members: List<Member>,
     isAdminLoggedIn: Boolean,
+    onlineCandidateIds: Set<Long> = emptySet(),
     onOpenAddMember: () -> Unit,
     onOpenSelfRegister: () -> Unit,
     onOpenAdminLogin: () -> Unit,
@@ -291,6 +292,7 @@ fun MembersScreen(
                     MemberRosterCard(
                         member = member,
                         isAdminLoggedIn = isAdminLoggedIn,
+                        isOnline = onlineCandidateIds.contains(member.id),
                         onOpenAdminLogin = onOpenAdminLogin,
                         onDistributeDesignation = { onDistributeDesignation(member) },
                         onAwardBestPerformer = { onAwardBestPerformer(member) },
@@ -367,6 +369,7 @@ fun MembersScreen(
 fun MemberRosterCard(
     member: Member,
     isAdminLoggedIn: Boolean,
+    isOnline: Boolean = false,
     onOpenAdminLogin: () -> Unit,
     onDistributeDesignation: () -> Unit,
     onAwardBestPerformer: () -> Unit,
@@ -402,37 +405,23 @@ fun MemberRosterCard(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Photo with gold badge if best performer, clickable to update photo
+                    // Profile Photo / Avatar with online indicator and click to update
                     Box(
                         modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .border(1.5.dp, if (member.isBestPerformer) GoldAccent else BorderLightGreen, CircleShape)
+                            .size(54.dp)
                             .clickable { onUpdatePhoto() },
                         contentAlignment = Alignment.Center
                     ) {
-                        if (!member.photoUri.isNullOrBlank()) {
-                            AsyncImage(
-                                model = member.photoUri,
-                                contentDescription = member.fullName,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else if (member.photoResName == "img_best_performer") {
-                            Image(
-                                painter = painterResource(id = R.drawable.img_best_performer),
-                                contentDescription = member.fullName,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            MemberAvatar(
-                                name = member.fullName,
-                                size = 52.dp,
-                                textSize = 18,
-                                colorIndex = member.avatarColorIndex
-                            )
-                        }
+                        MemberAvatar(
+                            name = member.fullName,
+                            photoUri = member.photoUri,
+                            photoResName = member.photoResName,
+                            size = 52.dp,
+                            textSize = 18,
+                            colorIndex = member.avatarColorIndex,
+                            isOnline = isOnline,
+                            showOnlineIndicator = true
+                        )
                     }
 
                     Spacer(modifier = Modifier.width(10.dp))
@@ -448,6 +437,22 @@ fun MemberRosterCard(
                             if (member.isBestPerformer) {
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(Icons.Default.Star, contentDescription = "Best Performer", tint = GoldText, modifier = Modifier.size(16.dp))
+                            }
+                            if (isOnline) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFDCFCE7))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "● लाइव",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF166534)
+                                    )
+                                }
                             }
                         }
 

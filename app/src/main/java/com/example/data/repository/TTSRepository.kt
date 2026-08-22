@@ -22,6 +22,11 @@ class TTSRepository(
 
     val isCloudConnected: StateFlow<Boolean> = firestoreService.isCloudConnected
     val syncStatus: StateFlow<String> = firestoreService.syncStatus
+    val onlineCandidateIds: StateFlow<Set<Long>> = firestoreService.onlineCandidateIds
+
+    suspend fun updateCandidatePresence(memberId: Long, memberName: String, isOnline: Boolean) {
+        firestoreService.updateCandidatePresence(memberId, memberName, isOnline)
+    }
 
     init {
         // Start real-time Firestore listeners to sync from cloud to local Room database
@@ -183,5 +188,40 @@ class TTSRepository(
     }
 
     suspend fun deleteChatMessage(id: Long) = ttsDao.deleteChatMessage(id)
+
+    suspend fun clearAllChatMessages() {
+        ttsDao.clearAllChatMessages()
+        firestoreService.clearAllChatFromCloud()
+    }
+
+    suspend fun clearAllNotices() {
+        ttsDao.clearAllNotices()
+        firestoreService.clearAllNoticesFromCloud()
+    }
+
+    suspend fun clearAllMeetings() {
+        ttsDao.clearAllMeetings()
+        firestoreService.clearAllMeetingsFromCloud()
+    }
+
+    suspend fun clearAllDocuments() {
+        ttsDao.clearAllDocuments()
+        firestoreService.clearAllDocumentsFromCloud()
+    }
+
+    suspend fun clearAllMembers() {
+        ttsDao.clearAllMembers()
+        firestoreService.clearAllMembersFromCloud()
+    }
+
+    suspend fun clearAllApplicationData() {
+        ttsDao.clearAllChatMessages()
+        ttsDao.clearAllDonations()
+        ttsDao.clearAllNotices()
+        ttsDao.clearAllMeetings()
+        ttsDao.clearAllDocuments()
+        ttsDao.clearAllMembers()
+        firestoreService.clearAllAppCloudData()
+    }
 }
 

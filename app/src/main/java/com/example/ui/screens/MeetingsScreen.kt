@@ -99,12 +99,14 @@ fun MeetingsScreen(
     activeMember: Member?,
     allMembers: List<Member>,
     isAdminLoggedIn: Boolean,
+    onlineCandidateIds: Set<Long> = emptySet(),
     onSelectChannel: (String) -> Unit,
     onSendMessage: (String) -> Unit,
     onOpenAddMeeting: () -> Unit,
     onOpenAdminLogin: () -> Unit,
     onDeleteMeeting: (Long) -> Unit,
     onOpenProfileSwitcher: () -> Unit,
+    onClearChat: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
@@ -143,10 +145,13 @@ fun MeetingsScreen(
                 chatMessages = chatMessages,
                 selectedChannel = selectedChannel,
                 activeMember = activeMember ?: allMembers.firstOrNull(),
+                allMembers = allMembers,
                 isAdminLoggedIn = isAdminLoggedIn,
+                onlineCandidateIds = onlineCandidateIds,
                 onSelectChannel = onSelectChannel,
                 onSendMessage = onSendMessage,
-                onOpenProfileSwitcher = onOpenProfileSwitcher
+                onOpenProfileSwitcher = onOpenProfileSwitcher,
+                onClearChat = onClearChat
             )
         } else {
             // MEETINGS SCHEDULE TAB
@@ -166,10 +171,13 @@ fun LiveChatSection(
     chatMessages: List<ChatMessage>,
     selectedChannel: String,
     activeMember: Member?,
+    allMembers: List<Member>,
     isAdminLoggedIn: Boolean,
+    onlineCandidateIds: Set<Long> = emptySet(),
     onSelectChannel: (String) -> Unit,
     onSendMessage: (String) -> Unit,
-    onOpenProfileSwitcher: () -> Unit
+    onOpenProfileSwitcher: () -> Unit,
+    onClearChat: () -> Unit = {}
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -251,20 +259,35 @@ fun LiveChatSection(
                 }
 
                 // Channels Row
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    items(channels) { (id, label) ->
-                        FilterChip(
-                            selected = selectedChannel == id,
-                            onClick = { onSelectChannel(id) },
-                            label = { Text(label, fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = SoftMintContainer,
-                                selectedLabelColor = PineGreenDark
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(channels) { (id, label) ->
+                            FilterChip(
+                                selected = selectedChannel == id,
+                                onClick = { onSelectChannel(id) },
+                                label = { Text(label, fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = SoftMintContainer,
+                                    selectedLabelColor = PineGreenDark
+                                )
                             )
-                        )
+                        }
+                    }
+
+                    if (isAdminLoggedIn) {
+                        IconButton(
+                            onClick = onClearChat,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "कमेटी चैट साफ़ करें", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }
@@ -280,6 +303,10 @@ fun LiveChatSection(
         ) {
             items(chatMessages, key = { it.id }) { msg ->
                 val isMe = msg.senderName.startsWith(activeMember?.fullName?.take(6) ?: "XYZ")
+                val senderMember = allMembers.firstOrNull {
+                    it.fullName.trim().equals(msg.senderName.trim(), ignoreCase = true) ||
+                    msg.senderName.contains(it.fullName.take(5), ignoreCase = true)
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -288,9 +315,13 @@ fun LiveChatSection(
                     if (!isMe) {
                         MemberAvatar(
                             name = msg.senderName,
-                            size = 32.dp,
+                            photoUri = senderMember?.photoUri,
+                            photoResName = senderMember?.photoResName,
+                            size = 36.dp,
                             textSize = 12,
-                            colorIndex = msg.senderAvatarIndex
+                            colorIndex = msg.senderAvatarIndex,
+                            isOnline = senderMember?.id?.let { onlineCandidateIds.contains(it) } ?: false,
+                            showOnlineIndicator = true
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }

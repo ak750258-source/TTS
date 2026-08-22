@@ -66,6 +66,9 @@ interface TTSDao {
     @Query("DELETE FROM meetings WHERE id = :id")
     suspend fun deleteMeetingById(id: Long)
 
+    @Query("DELETE FROM meetings")
+    suspend fun clearAllMeetings()
+
     // --- DOCUMENTS ---
     @Query("SELECT * FROM documents ORDER BY id DESC")
     fun getAllDocuments(): Flow<List<OfficialDocument>>
@@ -79,6 +82,9 @@ interface TTSDao {
     @Query("DELETE FROM documents WHERE id = :id")
     suspend fun deleteDocumentById(id: Long)
 
+    @Query("DELETE FROM documents")
+    suspend fun clearAllDocuments()
+
     // --- NOTICES ---
     @Query("SELECT * FROM notices ORDER BY isPinned DESC, id DESC")
     fun getAllNotices(): Flow<List<Notice>>
@@ -91,6 +97,9 @@ interface TTSDao {
 
     @Query("DELETE FROM notices WHERE id = :id")
     suspend fun deleteNoticeById(id: Long)
+
+    @Query("DELETE FROM notices")
+    suspend fun clearAllNotices()
 
     // --- DONATIONS ---
     @Query("SELECT * FROM donations ORDER BY timestamp DESC")
@@ -126,4 +135,7 @@ interface TTSDao {
 
     @Query("DELETE FROM chat_messages WHERE id = :id")
     suspend fun deleteChatMessage(id: Long)
+
+    @Query("DELETE FROM chat_messages")
+    suspend fun clearAllChatMessages()
 }

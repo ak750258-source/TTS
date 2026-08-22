@@ -353,9 +353,12 @@ fun IDCardFrontSide(
                             } else {
                                 MemberAvatar(
                                     name = member.fullName,
+                                    photoUri = member.photoUri,
+                                    photoResName = member.photoResName,
                                     size = 78.dp,
                                     textSize = 28,
-                                    colorIndex = member.avatarColorIndex
+                                    colorIndex = member.avatarColorIndex,
+                                    showOnlineIndicator = false
                                 )
                             }
 
@@ -491,7 +494,7 @@ fun IDCardFrontSide(
 
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = "जनाब गुलाम मुस्तफा",
+                                text = "जनाब मुंतज़िर खांन",
                                 fontFamily = FontFamily.Cursive,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
@@ -624,9 +627,35 @@ fun IDCardBackSide(
                     )
                 }
 
+                // Official Head Office Address Box requested by user
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFE8F5E9))
+                        .border(1.dp, BorderLightGreen, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = "प्रधान कार्यालय (Head Office):",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PineGreenDark
+                        )
+                        Text(
+                            text = "धनुपुरा, बिसौली, बदायूं, उत्तर प्रदेश (पिन कोड: 243632)",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimaryGreen,
+                            lineHeight = 14.sp
+                        )
+                    }
+                }
+
                 // Instructions in Hindi
                 Text(
-                    text = "1. यह पहचान पत्र 12 रबी-उल-अव्वल जश्न-ए-विलादत कमेटी की अधिकृत संपत्ति है।\n2. जुलूस व लंगर-ए-आम के दौरान गले में आईडी कार्ड अवश्य धारण करें।\n3. मिलने पर संपर्क करें: TTS कमेटी केंद्रीय कार्यालय, जामा मस्जिद रोड।",
+                    text = "1. यह पहचान पत्र 12 रबी-उल-अव्वल जश्न-ए-विलादत कमेटी की अधिकृत संपत्ति है।\n2. जुलूस व लंगर-ए-आम के दौरान गले में आईडी कार्ड अवश्य धारण करें।\n3. प्रधान कार्यालय: धनुपुरा, बिसौली, बदायूं, उत्तर प्रदेश, पिन कोड 243632",
                     fontSize = 8.sp,
                     color = TextSecondaryGreen,
                     lineHeight = 11.sp

@@ -85,14 +85,14 @@ abstract class TTSDatabase : RoomDatabase() {
                 Member(
                     id = 2,
                     memberCode = "TTS-1447-002",
-                    fullName = "जनाब गुलाम मुस्तफा",
+                    fullName = "जनाब मुंतज़िर खांन",
                     designation = "सदर (President)",
                     committeeWing = "मुख्य प्रबंधक बोर्ड",
                     phoneNumber = "+91 94432 55667",
                     email = "president@ttscommittee.org",
                     bloodGroup = "A+",
                     joinDate = "12 रबी-उल-अव्वल 1442 हिजरी",
-                    address = "नूरी नगर, मदीना मस्जिद लेन",
+                    address = "धनुपुरा, बिसौली, बदायूं, उत्तर प्रदेश (पिन कोड 243632)",
                     emergencyContact = "+91 94432 11223",
                     avatarColorIndex = 1,
                     isBestPerformer = true,
@@ -198,7 +198,7 @@ abstract class TTSDatabase : RoomDatabase() {
                     dateTimeMillis = System.currentTimeMillis() + (1L * 24 * 3600 * 1000),
                     venue = "TTS सेंट्रल हॉल, जामा मस्जिद कॉम्प्लेक्स",
                     virtualLink = "https://meet.google.com/tts-milad-1447",
-                    chairperson = "जनाब गुलाम मुस्तफा (सदर)",
+                    chairperson = "जनाब मुंतज़िर खांन (सदर)",
                     agenda = "1. जुलूस-ए-मोहम्मदी का तयशुदा रूट व परमिशन समीक्षा।\n2. लंगर-ए-आम (भोजन वितरण) की व्यवस्था व वॉलिंटियर्स ड्यूटी।\n3. शहर में रोशनी, झंडे (परचम) व डेकोरेशन का मुआयना।\n4. चंदा वसूली की पारदर्शी रिपोर्ट कोषाध्यक्ष द्वारा पेश करना।",
                     status = "Upcoming"
                 ),
@@ -374,7 +374,7 @@ abstract class TTSDatabase : RoomDatabase() {
                 ),
                 Donation(
                     id = 2,
-                    donorName = "जनाब गुलाम मुस्तफा (सदर)",
+                    donorName = "जनाब मुंतज़िर खांन (सदर)",
                     donorMemberCode = "TTS-1447-002",
                     amount = 25000.0,
                     purpose = "जुलूस-ए-मोहम्मदी स्टेज व लाइट डेकोरेशन",
@@ -456,7 +456,7 @@ abstract class TTSDatabase : RoomDatabase() {
                 ChatMessage(
                     id = 2,
                     channelId = "general",
-                    senderName = "जनाब गुलाम मुस्तफा (सदर)",
+                    senderName = "जनाब मुंतज़िर खांन (सदर)",
                     senderRole = "सदर",
                     senderAvatarIndex = 1,
                     messageText = "वालेकुम अस्सलाम हाजी साहब! जुलूस का रूट तय हो चुका है और प्रशासन से विधिवत अनुमति प्राप्त हो गई है।",

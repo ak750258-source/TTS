@@ -48,6 +48,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.foundation.Image
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -64,8 +65,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -73,6 +76,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.R
 import com.example.data.model.Member
 import com.example.ui.theme.BorderLightGreen
 import com.example.ui.theme.DeepForestGreen
@@ -106,32 +111,65 @@ val AvatarColors = listOf(
 fun MemberAvatar(
     name: String,
     modifier: Modifier = Modifier,
+    photoUri: String? = null,
+    photoResName: String? = null,
     colorIndex: Int = 0,
     size: Dp = 44.dp,
-    textSize: Int = 16
+    textSize: Int = 16,
+    isOnline: Boolean = false,
+    showOnlineIndicator: Boolean = true
 ) {
-    val initials = name.split(" ")
-        .filter { it.isNotBlank() }
-        .take(2)
-        .map { it.first().uppercaseChar() }
-        .joinToString("")
-        .ifEmpty { "M" }
-
     val bgColor = AvatarColors.getOrElse(colorIndex % AvatarColors.size) { AvatarColors[0] }
 
     Box(
-        modifier = modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(bgColor),
+        modifier = modifier.size(size),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = initials,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = textSize.sp
-        )
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(bgColor)
+                .border(1.5.dp, Color.White.copy(alpha = 0.8f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!photoUri.isNullOrBlank()) {
+                AsyncImage(
+                    model = photoUri,
+                    contentDescription = name,
+                    modifier = Modifier.size(size),
+                    contentScale = ContentScale.Crop
+                )
+            } else if (photoResName == "img_best_performer") {
+                Image(
+                    painter = painterResource(id = R.drawable.img_best_performer),
+                    contentDescription = name,
+                    modifier = Modifier.size(size),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // Profile icon instead of Hindi letter initials
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = name,
+                    tint = Color.White,
+                    modifier = Modifier.size(size * 0.58f)
+                )
+            }
+        }
+
+        // Live Online Green Presence Indicator on Avatar
+        if (showOnlineIndicator && isOnline) {
+            val dotSize = (size * 0.28f).coerceIn(8.dp, 14.dp)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(dotSize)
+                    .clip(CircleShape)
+                    .background(Color(0xFF22C55E))
+                    .border(1.5.dp, Color.White, CircleShape)
+            )
+        }
     }
 }
 
@@ -247,9 +285,13 @@ fun TTSAppHeader(
                     ) {
                         MemberAvatar(
                             name = currentName,
-                            size = 24.dp,
+                            photoUri = activeMember?.photoUri,
+                            photoResName = activeMember?.photoResName,
+                            size = 26.dp,
                             textSize = 10,
-                            colorIndex = activeMember?.avatarColorIndex ?: 0
+                            colorIndex = activeMember?.avatarColorIndex ?: 0,
+                            isOnline = true,
+                            showOnlineIndicator = true
                         )
                         Column {
                             Text(

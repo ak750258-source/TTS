@@ -76,6 +76,7 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
     val isAdminLoggedIn by viewModel.isAdminLoggedIn.collectAsState()
     val isCloudConnected by viewModel.isCloudConnected.collectAsState()
     val syncStatusText by viewModel.syncStatus.collectAsState()
+    val onlineCandidateIds by viewModel.onlineCandidateIds.collectAsState()
 
     // Dialog States
     var showAdminLoginDialog by remember { mutableStateOf(false) }
@@ -133,6 +134,7 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
                         totalDonations = totalDonations,
                         activeMember = activeMember,
                         isAdminLoggedIn = isAdminLoggedIn,
+                        onlineCandidateIds = onlineCandidateIds,
                         onOpenAdminLogin = { showAdminLoginDialog = true },
                         onLogoutAdmin = { viewModel.logoutAdmin() },
                         onNavigateToTab = { viewModel.setTab(it) },
@@ -151,7 +153,8 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
                             viewModel.setTab(AppTab.ID_CARD)
                         },
                         onSelectDocument = { viewedDocument = it },
-                        onSelectMeeting = { viewModel.setTab(AppTab.MEETINGS) }
+                        onSelectMeeting = { viewModel.setTab(AppTab.MEETINGS) },
+                        onClearEntireData = { viewModel.clearEntireApplicationData() }
                     )
                 }
 
@@ -159,6 +162,7 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
                     MembersScreen(
                         members = members,
                         isAdminLoggedIn = isAdminLoggedIn,
+                        onlineCandidateIds = onlineCandidateIds,
                         onOpenAddMember = { showAddMemberDialog = true },
                         onOpenSelfRegister = { showSelfRegisterDialog = true },
                         onOpenAdminLogin = { showAdminLoginDialog = true },
@@ -192,12 +196,14 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
                         activeMember = activeMember,
                         allMembers = members,
                         isAdminLoggedIn = isAdminLoggedIn,
+                        onlineCandidateIds = onlineCandidateIds,
                         onSelectChannel = { viewModel.selectChatChannel(it) },
                         onSendMessage = { msg -> viewModel.sendChatMessage(msg) },
                         onOpenAddMeeting = { showAddMeetingDialog = true },
                         onOpenAdminLogin = { showAdminLoginDialog = true },
                         onDeleteMeeting = { id -> viewModel.deleteMeeting(id) },
-                        onOpenProfileSwitcher = { showProfileSwitcher = true }
+                        onOpenProfileSwitcher = { showProfileSwitcher = true },
+                        onClearChat = { viewModel.clearAllChatMessages() }
                     )
                 }
 

@@ -29,6 +29,7 @@ class FirebaseFirestoreService {
         private const val COLLECTION_NOTICES = "tts_notices"
         private const val COLLECTION_DOCUMENTS = "tts_documents"
         private const val COLLECTION_CHAT = "tts_chat_messages"
+        private const val COLLECTION_PRESENCE = "tts_presence"
     }
 
     private var db: FirebaseFirestore? = null
@@ -39,6 +40,9 @@ class FirebaseFirestoreService {
 
     private val _syncStatus = MutableStateFlow("Firebase Firestore सक्रिय")
     val syncStatus: StateFlow<String> = _syncStatus.asStateFlow()
+
+    private val _onlineCandidateIds = MutableStateFlow<Set<Long>>(emptySet())
+    val onlineCandidateIds: StateFlow<Set<Long>> = _onlineCandidateIds.asStateFlow()
 
     private val listeners = mutableListOf<ListenerRegistration>()
 
@@ -54,11 +58,57 @@ class FirebaseFirestoreService {
             _isCloudConnected.value = true
             _syncStatus.value = "🟢 Firebase Firestore लाइव सिंक सक्रिय"
             Log.d(TAG, "Firebase Firestore successfully initialized")
+            startPresenceListener()
         } catch (e: Exception) {
             Log.w(TAG, "Firestore initialization notice: ${e.message}")
             isInitialized = false
             _isCloudConnected.value = false
             _syncStatus.value = "🟡 Firebase स्टैंडबाय (ऑफलाइन सुरक्षा सक्रिय)"
+        }
+    }
+
+    // --- CANDIDATE ONLINE PRESENCE TRACKING ---
+    private fun startPresenceListener() {
+        val firestore = db ?: return
+        try {
+            val registration = firestore.collection(COLLECTION_PRESENCE)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    if (snapshot != null) {
+                        val activeIds = mutableSetOf<Long>()
+                        val now = System.currentTimeMillis()
+                        // 10 minutes timeout window for live candidates
+                        for (doc in snapshot.documents) {
+                            val isOnline = doc.getBoolean("isOnline") ?: true
+                            val lastSeen = (doc.get("lastSeen") as? Number)?.toLong() ?: 0L
+                            val memberId = (doc.get("memberId") as? Number)?.toLong() ?: doc.id.toLongOrNull() ?: 0L
+                            if (memberId > 0 && isOnline && (now - lastSeen < 15 * 60 * 1000)) {
+                                activeIds.add(memberId)
+                            }
+                        }
+                        _onlineCandidateIds.value = activeIds
+                    }
+                }
+            listeners.add(registration)
+        } catch (e: Exception) {
+            Log.w(TAG, "Presence listener error: ${e.message}")
+        }
+    }
+
+    suspend fun updateCandidatePresence(memberId: Long, memberName: String, isOnline: Boolean) {
+        val firestore = db ?: return
+        if (memberId <= 0) return
+        try {
+            val docRef = firestore.collection(COLLECTION_PRESENCE).document(memberId.toString())
+            val data = hashMapOf(
+                "memberId" to memberId,
+                "memberName" to memberName,
+                "isOnline" to isOnline,
+                "lastSeen" to System.currentTimeMillis()
+            )
+            docRef.set(data, SetOptions.merge()).await()
+        } catch (e: Exception) {
+            Log.w(TAG, "Presence update error: ${e.message}")
         }
     }
 
@@ -417,6 +467,75 @@ class FirebaseFirestoreService {
         } catch (e: Exception) {
             Log.w(TAG, "Cloud sync chat error: ${e.message}")
         }
+    }
+
+    suspend fun clearAllChatFromCloud() {
+        val firestore = db ?: return
+        try {
+            val snapshot = firestore.collection(COLLECTION_CHAT).get().await()
+            for (doc in snapshot.documents) {
+                doc.reference.delete().await()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Cloud clear chat error: ${e.message}")
+        }
+    }
+
+    suspend fun clearAllMembersFromCloud() {
+        val firestore = db ?: return
+        try {
+            val snapshot = firestore.collection(COLLECTION_MEMBERS).get().await()
+            for (doc in snapshot.documents) {
+                doc.reference.delete().await()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Cloud clear members error: ${e.message}")
+        }
+    }
+
+    suspend fun clearAllMeetingsFromCloud() {
+        val firestore = db ?: return
+        try {
+            val snapshot = firestore.collection(COLLECTION_MEETINGS).get().await()
+            for (doc in snapshot.documents) {
+                doc.reference.delete().await()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Cloud clear meetings error: ${e.message}")
+        }
+    }
+
+    suspend fun clearAllNoticesFromCloud() {
+        val firestore = db ?: return
+        try {
+            val snapshot = firestore.collection(COLLECTION_NOTICES).get().await()
+            for (doc in snapshot.documents) {
+                doc.reference.delete().await()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Cloud clear notices error: ${e.message}")
+        }
+    }
+
+    suspend fun clearAllDocumentsFromCloud() {
+        val firestore = db ?: return
+        try {
+            val snapshot = firestore.collection(COLLECTION_DOCUMENTS).get().await()
+            for (doc in snapshot.documents) {
+                doc.reference.delete().await()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Cloud clear documents error: ${e.message}")
+        }
+    }
+
+    suspend fun clearAllAppCloudData() {
+        clearAllChatFromCloud()
+        clearAllDonationsFromCloud()
+        clearAllNoticesFromCloud()
+        clearAllMeetingsFromCloud()
+        clearAllDocumentsFromCloud()
+        clearAllMembersFromCloud()
     }
 
     fun clearListeners() {
