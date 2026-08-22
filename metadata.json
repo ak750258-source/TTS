@@ -1,0 +1,6 @@
+{
+  "name": "TTS Committee",
+  "description": "Official organization app for TTS Committee members to access meeting schedules, official documents, noticeboard, member directory, ID card generation, meeting chat, and transparent donation reports with UPI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
