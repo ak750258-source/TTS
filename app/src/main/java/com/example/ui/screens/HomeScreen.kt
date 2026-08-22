@@ -212,7 +212,7 @@ fun HomeScreen(
                                     )
                                     Spacer(modifier = Modifier.width(5.dp))
                                     Text(
-                                        text = "ऑनलाइन सक्रिय",
+                                        text = "Firebase लाइव क्लाउड",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White

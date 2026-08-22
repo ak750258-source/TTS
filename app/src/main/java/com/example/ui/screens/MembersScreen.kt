@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Call
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Phone
@@ -76,6 +78,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.model.Member
 import com.example.ui.components.MemberAvatar
@@ -99,9 +102,11 @@ fun MembersScreen(
     members: List<Member>,
     isAdminLoggedIn: Boolean,
     onOpenAddMember: () -> Unit,
+    onOpenSelfRegister: () -> Unit,
     onOpenAdminLogin: () -> Unit,
     onDistributeDesignation: (Member) -> Unit,
     onAwardBestPerformer: (Member) -> Unit,
+    onUpdatePhoto: (Member) -> Unit = {},
     onSelectForIDCard: (Member) -> Unit,
     onDeleteMember: (memberId: Long, memberName: String) -> Unit,
     modifier: Modifier = Modifier
@@ -170,25 +175,57 @@ fun MembersScreen(
                                     color = TextPrimaryGreen
                                 )
                                 Text(
-                                    text = "कुल ${members.size} पंजीकृत पदाधिकारी एवं खिदमतगार",
+                                    text = "कुल ${members.size} पंजीकृत पदाधिकारी एवं खादिम",
                                     fontSize = 11.sp,
                                     color = TextSecondaryGreen
                                 )
                             }
 
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isAdminLoggedIn) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(SoftMintContainer)
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "👑 एडमिन मोड",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = PineGreenDark
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Self Registration Button Bar
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = onOpenSelfRegister,
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f).testTag("self_register_banner_btn")
+                            ) {
+                                Icon(Icons.Default.HowToReg, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("सदस्य स्व-पंजीकरण", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
                             if (isAdminLoggedIn) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(SoftMintContainer)
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                OutlinedButton(
+                                    onClick = onOpenAddMember,
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryGreen),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f).testTag("admin_add_member_btn")
                                 ) {
-                                    Text(
-                                        text = "👑 एडमिन अधिकार सक्रिय",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = PineGreenDark
-                                    )
+                                    Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("सदस्य जोड़ें", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -257,6 +294,7 @@ fun MembersScreen(
                         onOpenAdminLogin = onOpenAdminLogin,
                         onDistributeDesignation = { onDistributeDesignation(member) },
                         onAwardBestPerformer = { onAwardBestPerformer(member) },
+                        onUpdatePhoto = { onUpdatePhoto(member) },
                         onSelectForIDCard = { onSelectForIDCard(member) },
                         onDeleteClick = { memberToDelete = member }
                     )
@@ -332,6 +370,7 @@ fun MemberRosterCard(
     onOpenAdminLogin: () -> Unit,
     onDistributeDesignation: () -> Unit,
     onAwardBestPerformer: () -> Unit,
+    onUpdatePhoto: () -> Unit = {},
     onSelectForIDCard: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
@@ -363,15 +402,23 @@ fun MemberRosterCard(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Photo with gold badge if best performer
+                    // Photo with gold badge if best performer, clickable to update photo
                     Box(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(CircleShape)
-                            .border(1.5.dp, if (member.isBestPerformer) GoldAccent else BorderLightGreen, CircleShape),
+                            .border(1.5.dp, if (member.isBestPerformer) GoldAccent else BorderLightGreen, CircleShape)
+                            .clickable { onUpdatePhoto() },
                         contentAlignment = Alignment.Center
                     ) {
-                        if (member.photoResName == "img_best_performer") {
+                        if (!member.photoUri.isNullOrBlank()) {
+                            AsyncImage(
+                                model = member.photoUri,
+                                contentDescription = member.fullName,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else if (member.photoResName == "img_best_performer") {
                             Image(
                                 painter = painterResource(id = R.drawable.img_best_performer),
                                 contentDescription = member.fullName,

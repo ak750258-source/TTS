@@ -24,10 +24,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Payment
+import androidx.compose.material.icons.filled.Publish
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
@@ -35,6 +39,7 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VolunteerActivism
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -92,14 +97,19 @@ const val OFFICIAL_UPI_ID = "ak750258@icici"
 fun DonationScreen(
     donations: List<Donation>,
     totalDonations: Double,
+    isAdminLoggedIn: Boolean = false,
+    onOpenAdminLogin: () -> Unit = {},
     onOpenAddDonationModal: () -> Unit,
+    onVerifyDonation: (donationId: Long, isVerified: Boolean) -> Unit = { _, _ -> },
+    onDeleteDonation: (donationId: Long) -> Unit = {},
+    onClearOldDonations: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var selectedAmount by remember { mutableDoubleStateOf(1100.0) }
-    var showQRModal by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedPurposeFilter by remember { mutableStateOf("सभी मद (All)") }
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
 
     val donationGoal = 250000.0
     val progress = (totalDonations / donationGoal).toFloat().coerceIn(0f, 1f)
@@ -153,16 +163,123 @@ fun DonationScreen(
                     )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(SoftMintContainer)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                if (isAdminLoggedIn) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SoftMintContainer)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("एडमिन अधिकार", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PineGreenDark)
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SoftMintContainer)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("100% पारदर्शी", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PineGreenDark)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Admin Authority Banner (Issue official list, clear old records)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = if (isAdminLoggedIn) SoftMintContainer else Color.White),
+                border = CardDefaults.outlinedCardBorder().copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(if (isAdminLoggedIn) EmeraldGreen else BorderLightGreen)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("100% पारदर्शी", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PineGreenDark)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Publish, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "आधिकारिक चंदा सूची जारी करें (Publish Official List)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = TextPrimaryGreen
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "कमेटी द्वारा संकलित पूर्ण चंदा सूची को सार्वजनिक रूप से व्हाट्सएप, सूचना-पट्ट अथवा सदस्यों में साझा करें।",
+                        fontSize = 10.sp,
+                        color = TextSecondaryGreen
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val listText = buildString {
+                                    appendLine("📋 *12 रबी-उल-अव्वल TTS कमेटी - आधिकारिक चंदा सूची*")
+                                    appendLine("आधिकारिक UPI: ak750258@icici")
+                                    appendLine("कुल संग्रह: ₹${String.format("%,.0f", totalDonations)} (${donations.size} दानकर्ता)")
+                                    appendLine("----------------------------------")
+                                    donations.forEachIndexed { index, d ->
+                                        appendLine("${index + 1}. ${d.donorName} - ₹${d.amount.toInt()} (${d.purpose})")
+                                    }
+                                    appendLine("----------------------------------")
+                                    appendLine("जज़ाकल्लाह ख़ैर • 12 रबी-उल-अव्वल कमेटी")
+                                }
+                                copyToClipboard(context, "Official Chanda List", listText)
+                                Toast.makeText(context, "आधिकारिक चंदा सूची कॉपी हो गई! सदस्यों में साझा करें।", Toast.LENGTH_LONG).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).testTag("publish_chanda_list_btn")
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("चंदा सूची जारी / साझा करें", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        if (isAdminLoggedIn) {
+                            OutlinedButton(
+                                onClick = { showClearConfirmDialog = true },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("clear_old_records_btn")
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("पुराना रिकॉर्ड हटाएं", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = onOpenAdminLogin,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.AdminPanelSettings, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("एडमिन लॉगिन", fontSize = 11.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -433,12 +550,18 @@ fun DonationScreen(
                                 MemberAvatar(name = donation.donorName, size = 36.dp, textSize = 14, colorIndex = 0)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
-                                    Text(
-                                        text = donation.donorName,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = TextPrimaryGreen
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = donation.donorName,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = TextPrimaryGreen
+                                        )
+                                        if (donation.verified) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Icon(Icons.Default.Verified, contentDescription = "सत्यापित", tint = EmeraldGreen, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
                                     Text(
                                         text = "${donation.purpose} • ${donation.paymentMode}",
                                         fontSize = 10.sp,
@@ -472,16 +595,27 @@ fun DonationScreen(
                                 color = TextSecondaryGreen
                             )
 
-                            TextButton(
-                                onClick = {
-                                    copyToClipboard(
-                                        context,
-                                        "Donation Receipt",
-                                        "12 रबी-उल-अव्वल TTS कमेटी चंदा रसीद:\nदानदाता: ${donation.donorName}\nराशि: ₹${donation.amount}\nमद: ${donation.purpose}\nरसीद संख्या: ${donation.transactionRef}\nतारीख: ${donation.date}\nUPI: ak750258@icici"
-                                    )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(
+                                    onClick = {
+                                        copyToClipboard(
+                                            context,
+                                            "Donation Receipt",
+                                            "12 रबी-उल-अव्वल TTS कमेटी चंदा रसीद:\nदानदाता: ${donation.donorName}\nराशि: ₹${donation.amount}\nमद: ${donation.purpose}\nरसीद संख्या: ${donation.transactionRef}\nतारीख: ${donation.date}\nसत्यापन: ${if (donation.verified) "आधिकारिक रूप से सत्यापित" else "लंबित"}\nUPI: ak750258@icici"
+                                        )
+                                    }
+                                ) {
+                                    Text("रसीद साझा करें", fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
                                 }
-                            ) {
-                                Text("रसीद साझा करें", fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+
+                                if (isAdminLoggedIn) {
+                                    IconButton(
+                                        onClick = { onDeleteDonation(donation.id) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
+                                    }
+                                }
                             }
                         }
                     }
@@ -492,5 +626,32 @@ fun DonationScreen(
         item {
             Spacer(modifier = Modifier.height(30.dp))
         }
+    }
+
+    // Clear confirmation dialog
+    if (showClearConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmDialog = false },
+            title = { Text("पुराना चंदा रिकॉर्ड हटाएं (Clear Records)", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("क्या आप निश्चित रूप से पुराने चंदा रिकॉर्ड्स हटाकर नया बहीखाता आरंभ करना चाहते हैं?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showClearConfirmDialog = false
+                        onClearOldDonations()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                ) {
+                    Text("हाँ, साफ़ करें", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirmDialog = false }) {
+                    Text("रद्द करें")
+                }
+            }
+        )
     }
 }

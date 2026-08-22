@@ -41,8 +41,14 @@ interface TTSDao {
     @Query("UPDATE members SET isBestPerformer = :isBest, bestPerformerBadge = :badge WHERE id = :id")
     suspend fun setBestPerformer(id: Long, isBest: Boolean, badge: String?)
 
+    @Query("UPDATE members SET photoUri = :photoUri WHERE id = :id")
+    suspend fun updateMemberPhoto(id: Long, photoUri: String?)
+
     @Query("DELETE FROM members WHERE id = :id")
     suspend fun deleteMemberById(id: Long)
+
+    @Query("DELETE FROM members")
+    suspend fun clearAllMembers()
 
     @Query("SELECT COUNT(*) FROM members")
     suspend fun getMembersCount(): Int
@@ -98,6 +104,15 @@ interface TTSDao {
 
     @Query("SELECT SUM(amount) FROM donations")
     fun getTotalDonationsSum(): Flow<Double?>
+
+    @Query("UPDATE donations SET verified = :verified WHERE id = :id")
+    suspend fun updateDonationVerification(id: Long, verified: Boolean)
+
+    @Query("DELETE FROM donations WHERE id = :id")
+    suspend fun deleteDonationById(id: Long)
+
+    @Query("DELETE FROM donations")
+    suspend fun clearAllDonations()
 
     // --- CHAT MESSAGES ---
     @Query("SELECT * FROM chat_messages WHERE channelId = :channelId ORDER BY timestamp ASC")

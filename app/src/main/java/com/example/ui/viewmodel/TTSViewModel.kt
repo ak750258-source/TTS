@@ -42,6 +42,10 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         repository = TTSRepository(database.ttsDao())
     }
 
+    // Firebase Firestore Live Cloud Sync Status
+    val isCloudConnected: StateFlow<Boolean> = repository.isCloudConnected
+    val syncStatus: StateFlow<String> = repository.syncStatus
+
     // Navigation State
     private val _currentTab = MutableStateFlow(AppTab.HOME)
     val currentTab: StateFlow<AppTab> = _currentTab.asStateFlow()
@@ -72,7 +76,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
             showSnackbar("सफलतापूर्वक एडमिन लॉगिन हो गया! अब आप पद वितरण, नोटिस व सदस्य संपादित कर सकते हैं।")
             true
         } else {
-            showSnackbar("गलत यूज़रनेम या पासवर्ड! केवल अधिकृत एडमिन (admin / admin) अनुमति प्राप्त है।")
+            showSnackbar("गलत यूज़रनेम या पासवर्ड! केवल अधिकृत एडमिन को अनुमति प्राप्त है।")
             false
         }
     }
@@ -200,7 +204,8 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         address: String,
         emergencyContact: String,
         isBestPerformer: Boolean = false,
-        bestBadge: String? = null
+        bestBadge: String? = null,
+        photoUri: String? = null
     ) {
         viewModelScope.launch {
             val count = members.value.size + 1
@@ -222,10 +227,69 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 avatarColorIndex = (count % 6),
                 isBestPerformer = isBestPerformer,
                 bestPerformerBadge = if (isBestPerformer) (bestBadge ?: "विशेष खिदमतगार सम्मान") else null,
-                photoResName = if (isBestPerformer) "img_best_performer" else null
+                photoResName = if (photoUri.isNullOrBlank() && isBestPerformer) "img_best_performer" else null,
+                photoUri = photoUri?.trim()
             )
-            repository.insertMember(newMember)
+            val newId = repository.insertMember(newMember)
             showSnackbar("नया सदस्य '${newMember.fullName}' सफलतापूर्वक जोड़ा गया! (आईडी: $code)")
+        }
+    }
+
+    fun selfRegisterMember(
+        fullName: String,
+        phoneNumber: String,
+        email: String,
+        address: String,
+        requestedWing: String,
+        emergencyContact: String,
+        photoUri: String? = null
+    ) {
+        viewModelScope.launch {
+            val count = members.value.size + 1
+            val code = "TTS-1447-${String.format(Locale.getDefault(), "%03d", count)}"
+            val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+            val today = dateFormat.format(Date())
+
+            val newMember = Member(
+                memberCode = code,
+                fullName = fullName.trim(),
+                designation = "खादिम-ए-कमेटी (Volunteer)",
+                committeeWing = requestedWing.trim().ifEmpty { "12 रबी-उल-अव्वल जुलूस कमेटी" },
+                phoneNumber = phoneNumber.trim(),
+                email = email.trim(),
+                bloodGroup = "",
+                joinDate = "12 रबी-उल-अव्वल 1447H ($today)",
+                address = address.trim(),
+                emergencyContact = emergencyContact.trim(),
+                avatarColorIndex = (count % 6),
+                isBestPerformer = false,
+                bestPerformerBadge = null,
+                photoResName = null,
+                photoUri = photoUri?.trim()
+            )
+            val insertedId = repository.insertMember(newMember)
+            val memberWithId = newMember.copy(id = insertedId)
+            _currentActiveMember.value = memberWithId
+            _selectedMemberForIDCard.value = memberWithId
+            _currentTab.value = AppTab.ID_CARD
+            showSnackbar("मुबारक! आपका 12 रबी-उल-अव्वल डिजिटल पहचान पत्र (ID Card) तैयार हो गया!")
+        }
+    }
+
+    fun updateMemberPhoto(memberId: Long, photoUri: String?) {
+        viewModelScope.launch {
+            repository.updateMemberPhoto(memberId, photoUri)
+            val current = members.value.find { it.id == memberId }
+            if (current != null) {
+                val updated = current.copy(photoUri = photoUri)
+                if (_selectedMemberForIDCard.value?.id == memberId) {
+                    _selectedMemberForIDCard.value = updated
+                }
+                if (_currentActiveMember.value?.id == memberId) {
+                    _currentActiveMember.value = updated
+                }
+            }
+            showSnackbar("सदस्य की फोटो सफलतापूर्वक अपडेट हो गई!")
         }
     }
 
@@ -413,6 +477,27 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
             )
             repository.insertDonation(donation)
             showSnackbar("₹$amount का चंदा ($donorName) पारदर्शी सार्वजनिक लेजर में दर्ज हो गया!")
+        }
+    }
+
+    fun updateDonationVerification(donationId: Long, isVerified: Boolean) {
+        viewModelScope.launch {
+            repository.updateDonationVerification(donationId, isVerified)
+            showSnackbar(if (isVerified) "चंदा रसीद आधिकारिक रूप से सत्यापित की गई (Verified)" else "चंदा रसीद सत्यापन लंबित किया गया")
+        }
+    }
+
+    fun deleteDonation(donationId: Long) {
+        viewModelScope.launch {
+            repository.deleteDonation(donationId)
+            showSnackbar("चंदा प्रविष्टि हटा दी गई")
+        }
+    }
+
+    fun clearAllOldDonations() {
+        viewModelScope.launch {
+            repository.clearAllDonations()
+            showSnackbar("पुराने चंदा रिकॉर्ड्स हटा दिए गए हैं! नया बहीखाता आरंभ हो गया।")
         }
     }
 

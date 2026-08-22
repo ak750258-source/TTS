@@ -1,6 +1,9 @@
 package com.example.ui.components
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,8 +26,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
@@ -31,6 +37,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
@@ -48,6 +55,7 @@ import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import coil.compose.AsyncImage
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -186,7 +194,6 @@ fun AdminLoginDialog(
                     }
                 }
 
-                // Default credentials hint
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -195,7 +202,7 @@ fun AdminLoginDialog(
                         .padding(10.dp)
                 ) {
                     Text(
-                        text = "🔒 केवल अधिकृत एडमिन हेतु:\nयूज़रनेम: admin | पासवर्ड: admin",
+                        text = "🔒 यह केवल अधिकृत कमेटी एडमिनिस्ट्रेटर हेतु सुरक्षित लॉगिन पैनल है।",
                         fontSize = 11.sp,
                         color = PineGreenDark,
                         lineHeight = 15.sp,
@@ -252,7 +259,7 @@ fun AdminLoginDialog(
                         onClick = {
                             val success = onLogin(username, password)
                             if (!success) {
-                                errorMessage = "गलत क्रेडेंशियल्स! Username: admin, Password: admin"
+                                errorMessage = "गलत यूज़रनेम या पासवर्ड! कृपया सही विवरण दर्ज करें।"
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
@@ -549,7 +556,8 @@ fun AddMemberDialog(
         address: String,
         emergencyContact: String,
         isBestPerformer: Boolean,
-        bestBadge: String?
+        bestBadge: String?,
+        photoUri: String?
     ) -> Unit
 ) {
     var fullName by remember { mutableStateOf("") }
@@ -561,6 +569,15 @@ fun AddMemberDialog(
     var emergencyContact by remember { mutableStateOf("+91 ") }
     var isBestPerformer by remember { mutableStateOf(false) }
     var bestBadge by remember { mutableStateOf("12 रबी-उल-अव्वल सर्वश्रेष्ठ खिदमतगार") }
+    var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            selectedPhotoUri = uri.toString()
+        }
+    }
 
     var expandedDesignation by remember { mutableStateOf(false) }
     var expandedWing by remember { mutableStateOf(false) }
@@ -611,6 +628,51 @@ fun AddMemberDialog(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
+                }
+
+                // Member Photo Upload Box
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SoftMintContainer)
+                        .clickable { photoPickerLauncher.launch("image/*") }
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White)
+                            .border(1.5.dp, EmeraldGreen, RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (selectedPhotoUri != null) {
+                            AsyncImage(
+                                model = selectedPhotoUri,
+                                contentDescription = "Selected Photo",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(Icons.Default.AddAPhoto, contentDescription = "Upload Photo", tint = EmeraldGreen, modifier = Modifier.size(24.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (selectedPhotoUri != null) "✓ फोटो चुनी गई (Photo Selected)" else "📷 सदस्य की फोटो अपलोड करें (ID कार्ड हेतु)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = TextPrimaryGreen
+                        )
+                        Text(
+                            text = if (selectedPhotoUri != null) "बदलने के लिए यहाँ टैप करें" else "गैलरी से सदस्य की तस्वीर चुनें",
+                            fontSize = 10.sp,
+                            color = TextSecondaryGreen
+                        )
+                    }
                 }
 
                 // Full Name
@@ -758,13 +820,383 @@ fun AddMemberDialog(
                                 if (address.isBlank()) "मस्जिद रोड, वार्ड 12" else address,
                                 if (emergencyContact.isBlank()) phoneNumber else emergencyContact,
                                 isBestPerformer,
-                                if (isBestPerformer) bestBadge else null
+                                if (isBestPerformer) bestBadge else null,
+                                selectedPhotoUri
                             )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                         modifier = Modifier.testTag("submit_add_member_button")
                     ) {
                         Text("आईडी जारी करें (Save & Issue ID)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- SELF REGISTER MEMBER DIALOG (FOR VOLUNTEERS/MEMBERS) ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SelfRegisterMemberDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (
+        fullName: String,
+        phoneNumber: String,
+        email: String,
+        address: String,
+        requestedWing: String,
+        emergencyContact: String,
+        photoUri: String?
+    ) -> Unit
+) {
+    var fullName by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("+91 ") }
+    var email by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    var requestedWing by remember { mutableStateOf(HindiWingOptions[0]) }
+    var emergencyContact by remember { mutableStateOf("+91 ") }
+    var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
+    var expandedWing by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            selectedPhotoUri = uri.toString()
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SoftMintContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.HowToReg, contentDescription = null, tint = PrimaryGreen)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "सदस्य स्व-पंजीकरण",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                color = TextPrimaryGreen
+                            )
+                            Text(
+                                text = "12 रबी-उल-अव्वल डिजिटल पहचान पत्र पाएं",
+                                fontSize = 11.sp,
+                                color = TextSecondaryGreen
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                if (errorMsg != null) {
+                    Text(
+                        text = errorMsg!!,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Photo Upload Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { photoPickerLauncher.launch("image/*") },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = SoftMintContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White)
+                                .border(2.dp, GoldAccent, RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (selectedPhotoUri != null) {
+                                AsyncImage(
+                                    model = selectedPhotoUri,
+                                    contentDescription = "Uploaded Photo",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(26.dp))
+                                    Text("फोटो", fontSize = 9.sp, color = TextSecondaryGreen, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (selectedPhotoUri != null) "✓ आपकी फोटो चयनित है" else "📷 अपनी फोटो अपलोड करें *",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = TextPrimaryGreen
+                            )
+                            Text(
+                                text = "यह फोटो आपके 12 रबी-उल-अव्वल ID कार्ड पर प्रिंट होगी।",
+                                fontSize = 11.sp,
+                                color = TextSecondaryGreen
+                            )
+                        }
+                    }
+                }
+
+                // Full Name
+                OutlinedTextField(
+                    value = fullName,
+                    onValueChange = { fullName = it },
+                    label = { Text("आपका पूरा नाम (Full Name) *") },
+                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = EmeraldGreen) },
+                    modifier = Modifier.fillMaxWidth().testTag("self_reg_name_input"),
+                    singleLine = true
+                )
+
+                // Phone
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = { Text("मोबाइल नंबर (WhatsApp Phone) *") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = EmeraldGreen) },
+                    modifier = Modifier.fillMaxWidth().testTag("self_reg_phone_input"),
+                    singleLine = true
+                )
+
+                // Wing Selection
+                ExposedDropdownMenuBox(
+                    expanded = expandedWing,
+                    onExpandedChange = { expandedWing = it },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = requestedWing,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("आप किस सेवा विंग में शामिल होना चाहते हैं?") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedWing) },
+                        leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null, tint = EmeraldGreen) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedWing,
+                        onDismissRequest = { expandedWing = false }
+                    ) {
+                        HindiWingOptions.forEach { opt ->
+                            DropdownMenuItem(
+                                text = { Text(opt) },
+                                onClick = {
+                                    requestedWing = opt
+                                    expandedWing = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Address
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    label = { Text("मोहल्ला / गली / वार्ड पता (Address)") },
+                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = EmeraldGreen) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Emergency Contact
+                OutlinedTextField(
+                    value = emergencyContact,
+                    onValueChange = { emergencyContact = it },
+                    label = { Text("आपातकालीन संपर्क नंबर (Emergency Phone)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (fullName.isBlank()) {
+                                errorMsg = "कृपया अपना पूरा नाम दर्ज करें"
+                                return@Button
+                            }
+                            if (phoneNumber.length < 6) {
+                                errorMsg = "कृपया सही मोबाइल नंबर दर्ज करें"
+                                return@Button
+                            }
+                            onConfirm(
+                                fullName,
+                                phoneNumber,
+                                if (email.isBlank()) "member@ttscommittee.org" else email,
+                                if (address.isBlank()) "वार्ड 12, मुख्य मोहल्ला" else address,
+                                requestedWing,
+                                if (emergencyContact.isBlank()) phoneNumber else emergencyContact,
+                                selectedPhotoUri
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                        modifier = Modifier.testTag("submit_self_reg_button")
+                    ) {
+                        Text("आईडी कार्ड बनाएं (Register)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- UPDATE MEMBER PHOTO DIALOG ---
+@Composable
+fun UpdateMemberPhotoDialog(
+    member: Member,
+    onDismiss: () -> Unit,
+    onConfirm: (photoUri: String) -> Unit
+) {
+    var photoUri by remember { mutableStateOf(member.photoUri) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            photoUri = uri.toString()
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "फोटो बदलें / लगाएं",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = TextPrimaryGreen
+                        )
+                        Text(
+                            text = "${member.fullName} (${member.memberCode})",
+                            fontSize = 11.sp,
+                            color = TextSecondaryGreen
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(SoftMintContainer)
+                        .border(2.5.dp, GoldAccent, RoundedCornerShape(16.dp))
+                        .clickable { photoPickerLauncher.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!photoUri.isNullOrBlank()) {
+                        AsyncImage(
+                            model = photoUri,
+                            contentDescription = "Member Photo",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(36.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("फोटो चुनें", fontSize = 11.sp, color = TextPrimaryGreen, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = { photoPickerLauncher.launch("image/*") },
+                    colors = ButtonDefaults.buttonColors(containerColor = SoftMintContainer)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("गैलरी से फोटो चुनें", color = PrimaryGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (!photoUri.isNullOrBlank()) {
+                                onConfirm(photoUri!!)
+                            }
+                        },
+                        enabled = !photoUri.isNullOrBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                    ) {
+                        Text("सहेजें (Save Photo)", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -140,6 +141,8 @@ fun TTSAppHeader(
     activeMember: Member?,
     allMembers: List<Member>,
     isAdminLoggedIn: Boolean,
+    isCloudConnected: Boolean = true,
+    syncStatusText: String = "Firebase लाइव सिंक",
     onOpenAdminLogin: () -> Unit,
     onOpenProfileSwitcher: () -> Unit,
     onSelectActiveMember: (Member) -> Unit,
@@ -147,7 +150,9 @@ fun TTSAppHeader(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .statusBarsPadding(),
         color = MintBackground,
         shadowElevation = 0.dp
     ) {
@@ -205,11 +210,21 @@ fun TTSAppHeader(
                                 )
                             }
                         }
-                        Text(
-                            text = "जश्न-ए-विलादत-उन-नबी ﷺ 1447H",
-                            fontSize = 11.sp,
-                            color = TextSecondaryGreen
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isCloudConnected) EmeraldGreen else GoldAccent)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Firestore लाइव क्लाउड सिंक",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isCloudConnected) EmeraldGreen else TextSecondaryGreen
+                            )
+                        }
                     }
                 }
 

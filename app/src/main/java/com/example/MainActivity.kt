@@ -31,8 +31,10 @@ import com.example.ui.components.AwardBestPerformerDialog
 import com.example.ui.components.DistributeDesignationDialog
 import com.example.ui.components.DocumentViewerDialog
 import com.example.ui.components.ProfileSwitcherDialog
+import com.example.ui.components.SelfRegisterMemberDialog
 import com.example.ui.components.TTSAppHeader
 import com.example.ui.components.TTSBottomNavigationBar
+import com.example.ui.components.UpdateMemberPhotoDialog
 import com.example.ui.screens.DonationScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.IDCardScreen
@@ -72,16 +74,20 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
     val selectedChannel by viewModel.selectedChatChannel.collectAsState()
     val previewIDCardMember by viewModel.selectedMemberForIDCard.collectAsState()
     val isAdminLoggedIn by viewModel.isAdminLoggedIn.collectAsState()
+    val isCloudConnected by viewModel.isCloudConnected.collectAsState()
+    val syncStatusText by viewModel.syncStatus.collectAsState()
 
     // Dialog States
     var showAdminLoginDialog by remember { mutableStateOf(false) }
     var showProfileSwitcher by remember { mutableStateOf(false) }
     var showAddMemberDialog by remember { mutableStateOf(false) }
+    var showSelfRegisterDialog by remember { mutableStateOf(false) }
     var showAddMeetingDialog by remember { mutableStateOf(false) }
     var showAddNoticeDialog by remember { mutableStateOf(false) }
     var showAddDonationDialog by remember { mutableStateOf(false) }
     var memberForDesignation by remember { mutableStateOf<Member?>(null) }
     var memberForBestPerformer by remember { mutableStateOf<Member?>(null) }
+    var memberForPhotoUpdate by remember { mutableStateOf<Member?>(null) }
     var viewedDocument by remember { mutableStateOf<OfficialDocument?>(null) }
 
     Scaffold(
@@ -94,6 +100,8 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
                 activeMember = activeMember,
                 allMembers = members,
                 isAdminLoggedIn = isAdminLoggedIn,
+                isCloudConnected = isCloudConnected,
+                syncStatusText = syncStatusText,
                 onOpenAdminLogin = { showAdminLoginDialog = true },
                 onOpenProfileSwitcher = { showProfileSwitcher = true },
                 onSelectActiveMember = { viewModel.setActiveMember(it) },
@@ -152,9 +160,11 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
                         members = members,
                         isAdminLoggedIn = isAdminLoggedIn,
                         onOpenAddMember = { showAddMemberDialog = true },
+                        onOpenSelfRegister = { showSelfRegisterDialog = true },
                         onOpenAdminLogin = { showAdminLoginDialog = true },
                         onDistributeDesignation = { member -> memberForDesignation = member },
                         onAwardBestPerformer = { member -> memberForBestPerformer = member },
+                        onUpdatePhoto = { member -> memberForPhotoUpdate = member },
                         onSelectForIDCard = { member ->
                             viewModel.selectMemberForIDCard(member)
                             viewModel.setTab(AppTab.ID_CARD)
@@ -217,7 +227,12 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
                     DonationScreen(
                         donations = donations,
                         totalDonations = totalDonations,
-                        onOpenAddDonationModal = { showAddDonationDialog = true }
+                        isAdminLoggedIn = isAdminLoggedIn,
+                        onOpenAdminLogin = { showAdminLoginDialog = true },
+                        onOpenAddDonationModal = { showAddDonationDialog = true },
+                        onVerifyDonation = { id, verified -> viewModel.updateDonationVerification(id, verified) },
+                        onDeleteDonation = { id -> viewModel.deleteDonation(id) },
+                        onClearOldDonations = { viewModel.clearAllOldDonations() }
                     )
                 }
             }
@@ -267,6 +282,19 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
         )
     }
 
+    // Update Photo Dialog
+    if (memberForPhotoUpdate != null) {
+        val targetMember = memberForPhotoUpdate!!
+        UpdateMemberPhotoDialog(
+            member = targetMember,
+            onDismiss = { memberForPhotoUpdate = null },
+            onConfirm = { newPhotoUri ->
+                viewModel.updateMemberPhoto(targetMember.id, newPhotoUri)
+                memberForPhotoUpdate = null
+            }
+        )
+    }
+
     // Persona Switcher Dialog
     if (showProfileSwitcher) {
         ProfileSwitcherDialog(
@@ -277,11 +305,30 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
         )
     }
 
-    // Add Member Dialog
+    // Self Register Member Dialog
+    if (showSelfRegisterDialog) {
+        SelfRegisterMemberDialog(
+            onDismiss = { showSelfRegisterDialog = false },
+            onConfirm = { name, phone, email, addr, wing, emergency, photoUri ->
+                viewModel.selfRegisterMember(
+                    fullName = name,
+                    phoneNumber = phone,
+                    email = email,
+                    address = addr,
+                    requestedWing = wing,
+                    emergencyContact = emergency,
+                    photoUri = photoUri
+                )
+                showSelfRegisterDialog = false
+            }
+        )
+    }
+
+    // Add Member Dialog (Admin)
     if (showAddMemberDialog) {
         AddMemberDialog(
             onDismiss = { showAddMemberDialog = false },
-            onConfirm = { name, desig, wing, phone, email, blood, addr, emContact, isBest, bestBadge ->
+            onConfirm = { name, desig, wing, phone, email, blood, addr, emContact, isBest, bestBadge, photoUri ->
                 viewModel.addMember(
                     fullName = name,
                     designation = desig,
@@ -292,7 +339,8 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
                     address = addr,
                     emergencyContact = emContact,
                     isBestPerformer = isBest,
-                    bestBadge = bestBadge
+                    bestBadge = bestBadge,
+                    photoUri = photoUri
                 )
                 showAddMemberDialog = false
             }

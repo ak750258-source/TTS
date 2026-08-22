@@ -1,7 +1,10 @@
 package com.example.ui.components
 
 import android.content.Context
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -26,7 +29,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContactPhone
 import androidx.compose.material.icons.filled.ContentCopy
@@ -75,6 +80,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.model.Member
 import com.example.ui.theme.BorderLightGreen
@@ -93,10 +99,20 @@ import com.example.ui.theme.TextSecondaryGreen
 @Composable
 fun MemberIDCardView(
     member: Member,
+    onUpdatePhoto: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var isBackSide by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null && onUpdatePhoto != null) {
+            onUpdatePhoto(uri.toString())
+            Toast.makeText(context, "फोटो सफलतापूर्वक अपलोड हो गई!", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -111,7 +127,11 @@ fun MemberIDCardView(
             label = "IDCardFlip"
         ) { back ->
             if (!back) {
-                IDCardFrontSide(member = member, onFlip = { isBackSide = true })
+                IDCardFrontSide(
+                    member = member,
+                    onFlip = { isBackSide = true },
+                    onPickPhoto = if (onUpdatePhoto != null) { { photoPickerLauncher.launch("image/*") } } else null
+                )
             } else {
                 IDCardBackSide(member = member, onFlip = { isBackSide = false })
             }
@@ -122,7 +142,7 @@ fun MemberIDCardView(
         // Action Toolbar below ID Card
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedButton(
@@ -133,13 +153,28 @@ fun MemberIDCardView(
                 Icon(
                     imageVector = Icons.Default.FlipCameraAndroid,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(16.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(if (isBackSide) "सामने का भाग देखें (Front)" else "पीछे का भाग देखें (Back)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(if (isBackSide) "सामने देखें" else "पीछे देखें", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            if (onUpdatePhoto != null) {
+                Button(
+                    onClick = { photoPickerLauncher.launch("image/*") },
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                    modifier = Modifier.testTag("upload_photo_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AddAPhoto,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (!member.photoUri.isNullOrBlank()) "फोटो बदलें" else "फोटो लगाएं", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
 
             Button(
                 onClick = {
@@ -151,11 +186,11 @@ fun MemberIDCardView(
                 Icon(
                     imageVector = Icons.Default.Download,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(16.dp),
                     tint = Color.White
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("कार्ड सेव करें", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("कार्ड सेव", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -164,7 +199,8 @@ fun MemberIDCardView(
 @Composable
 fun IDCardFrontSide(
     member: Member,
-    onFlip: () -> Unit
+    onFlip: () -> Unit,
+    onPickPhoto: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
@@ -296,10 +332,18 @@ fun IDCardFrontSide(
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(Color.White)
                                 .border(2.5.dp, GoldAccent, RoundedCornerShape(14.dp))
-                                .shadow(4.dp, RoundedCornerShape(14.dp)),
+                                .shadow(4.dp, RoundedCornerShape(14.dp))
+                                .then(if (onPickPhoto != null) Modifier.clickable { onPickPhoto() } else Modifier),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (member.photoResName == "img_best_performer") {
+                            if (!member.photoUri.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = member.photoUri,
+                                    contentDescription = "Member Photo - ${member.fullName}",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else if (member.photoResName == "img_best_performer") {
                                 Image(
                                     painter = painterResource(id = R.drawable.img_best_performer),
                                     contentDescription = "Member Photo",
@@ -313,6 +357,27 @@ fun IDCardFrontSide(
                                     textSize = 28,
                                     colorIndex = member.avatarColorIndex
                                 )
+                            }
+
+                            // Camera upload icon hint overlay if editable
+                            if (onPickPhoto != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(4.dp)
+                                        .size(22.dp)
+                                        .clip(CircleShape)
+                                        .background(PineGreenDark)
+                                        .border(1.dp, Color.White, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CameraAlt,
+                                        contentDescription = "Upload Photo",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
                             }
                         }
 

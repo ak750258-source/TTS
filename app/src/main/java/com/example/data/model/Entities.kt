@@ -20,7 +20,8 @@ data class Member(
     val isActive: Boolean = true,
     val isBestPerformer: Boolean = false,
     val bestPerformerBadge: String? = null, // e.g. "सर्वश्रेष्ठ खिदमतगार 1447H", "जुलूस-ए-मोहम्मदी स्टार वॉलंटियर", "उत्कृष्ट लंगर सेवा"
-    val photoResName: String? = null // e.g. "img_best_performer"
+    val photoResName: String? = null, // e.g. "img_best_performer"
+    val photoUri: String? = null // Device gallery image URI or content path
 )
 
 @Entity(tableName = "meetings")
