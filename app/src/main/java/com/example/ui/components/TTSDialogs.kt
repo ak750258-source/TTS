@@ -1867,16 +1867,15 @@ fun ProfileSwitcherDialog(
                                     .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (m.photoResName == "img_best_performer") {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.img_best_performer),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(36.dp).clip(CircleShape),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    MemberAvatar(name = m.fullName, size = 36.dp, textSize = 13, colorIndex = m.avatarColorIndex)
-                                }
+                                MemberAvatar(
+                                    name = m.fullName,
+                                    photoUri = m.photoUri,
+                                    photoResName = m.photoResName,
+                                    size = 36.dp,
+                                    textSize = 13,
+                                    colorIndex = m.avatarColorIndex,
+                                    showOnlineIndicator = false
+                                )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(m.fullName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextPrimaryGreen)
@@ -1893,3 +1892,195 @@ fun ProfileSwitcherDialog(
         }
     }
 }
+
+// --- ADD DOCUMENT DIALOG IN HINDI (ADMIN ONLY - REAL-TIME CLOUD SYNCED) ---
+@Composable
+fun AddDocumentDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (
+        title: String,
+        category: String,
+        accessLevel: String,
+        summary: String,
+        fullContent: String
+    ) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("प्रशासनिक आदेश") }
+    var accessLevel by remember { mutableStateOf("सार्वजनिक (Public)") }
+    var summary by remember { mutableStateOf("") }
+    var fullContent by remember { mutableStateOf("") }
+
+    val categoryOptions = listOf(
+        "प्रशासनिक आदेश",
+        "जुलूस नियमावली व रूट मैप",
+        "सुरक्षा व अनुमति पत्र",
+        "लंगर व सबील व्यवस्था",
+        "वित्तीय ऑडिट रिपोर्ट",
+        "आधिकारिक प्रस्ताव"
+    )
+
+    val accessLevelOptions = listOf(
+        "सार्वजनिक (Public)",
+        "कमेटी सदस्य केवल (Internal)",
+        "गोपनीय (Confidential)"
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "नया आधिकारिक दस्तावेज़ जोड़ें",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = TextPrimaryGreen
+                        )
+                        Text(
+                            text = "सभी सदस्यों व जनता के लिए लाइव क्लाउड सिंक",
+                            fontSize = 11.sp,
+                            color = TextSecondaryGreen
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("दस्तावेज़ का शीर्षक / नाम *") },
+                    placeholder = { Text("उदा. 12 रबी-उल-अव्वल जुलूस सुरक्षा व अनुशासन नियमावली") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "दस्तावेज़ श्रेणी (Category):",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimaryGreen
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        categoryOptions.take(3).forEach { cat ->
+                            val isSel = category == cat
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSel) PrimaryGreen else SoftMintContainer)
+                                    .clickable { category = cat }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSel) Color.White else TextPrimaryGreen
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "पहुँच स्तर (Access Level):",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimaryGreen
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        accessLevelOptions.forEach { acc ->
+                            val isSel = accessLevel == acc
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSel) PineGreenDark else SoftMintContainer)
+                                    .clickable { accessLevel = acc }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = acc,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSel) Color.White else TextPrimaryGreen
+                                )
+                            }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = summary,
+                    onValueChange = { summary = it },
+                    label = { Text("मुख्य सारांश (Short Summary) *") },
+                    placeholder = { Text("दस्तावेज़ का 1-2 पंक्तियों में संक्षिप्त विवरण...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3
+                )
+
+                OutlinedTextField(
+                    value = fullContent,
+                    onValueChange = { fullContent = it },
+                    label = { Text("दस्तावेज़ का पूर्ण विवरण / आदेश (Full Content) *") },
+                    placeholder = { Text("दस्तावेज़ के सभी नियम, बिंदु और निर्देश विस्तार से यहाँ लिखें...") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    maxLines = 8
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (title.isNotBlank() && summary.isNotBlank()) {
+                                onConfirm(
+                                    title,
+                                    category,
+                                    accessLevel,
+                                    summary,
+                                    if (fullContent.isBlank()) summary else fullContent
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                    ) {
+                        Text("दस्तावेज़ अपलोड करें (Publish)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+

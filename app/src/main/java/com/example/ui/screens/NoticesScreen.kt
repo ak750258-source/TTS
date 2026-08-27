@@ -279,85 +279,123 @@ fun NoticesScreen(
             }
         } else {
             // DOCUMENTS VAULT TAB
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "कमेटी नियमावली एवं प्रशासनिक दस्तावेज़",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = TextPrimaryGreen
-                    )
-                }
-
-                items(documents, key = { it.id }) { doc ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable { onViewDocument(doc) },
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        border = CardDefaults.outlinedCardBorder().copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(BorderLightGreen)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(SoftMintContainer)
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Text(doc.category, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PineGreenDark)
-                                }
-                                Text(doc.refCode, fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = TextSecondaryGreen)
+                            Column {
+                                Text(
+                                    text = "कमेटी नियमावली एवं प्रशासनिक दस्तावेज़",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = TextPrimaryGreen
+                                )
+                                Text(
+                                    text = "आधिकारिक डिजिटल आदेश व नियमावली सूची",
+                                    fontSize = 11.sp,
+                                    color = TextSecondaryGreen
+                                )
                             }
 
-                            Text(
-                                text = doc.title,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = TextPrimaryGreen,
-                                lineHeight = 19.sp
-                            )
-
-                            Text(
-                                text = doc.summary,
-                                fontSize = 11.sp,
-                                color = TextSecondaryGreen,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("जारी: ${doc.publishedDate}", fontSize = 10.sp, color = TextSecondaryGreen)
-                                Text("दस्तावेज़ खोलें →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+                            if (isAdminLoggedIn) {
+                                Button(
+                                    onClick = onAddDocumentClick,
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("दस्तावेज़ जोड़ें", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
-                }
 
-                item {
-                    Spacer(modifier = Modifier.height(60.dp))
+                    items(documents, key = { it.id }) { doc ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { onViewDocument(doc) },
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = CardDefaults.outlinedCardBorder().copy(
+                                brush = androidx.compose.ui.graphics.SolidColor(BorderLightGreen)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(SoftMintContainer)
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(doc.category, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PineGreenDark)
+                                    }
+                                    
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(doc.refCode, fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = TextSecondaryGreen)
+                                        if (isAdminLoggedIn) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            IconButton(
+                                                onClick = { onDeleteDocument(doc.id) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text(
+                                    text = doc.title,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = TextPrimaryGreen,
+                                    lineHeight = 19.sp
+                                )
+
+                                Text(
+                                    text = doc.summary,
+                                    fontSize = 11.sp,
+                                    color = TextSecondaryGreen,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("जारी: ${doc.publishedDate}", fontSize = 10.sp, color = TextSecondaryGreen)
+                                    Text("दस्तावेज़ खोलें →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(60.dp))
+                    }
                 }
             }
         }

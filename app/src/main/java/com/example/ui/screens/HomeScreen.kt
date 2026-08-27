@@ -124,6 +124,7 @@ fun HomeScreen(
     onOpenAddMeeting: () -> Unit,
     onOpenAddDonation: () -> Unit,
     onOpenAddNotice: () -> Unit,
+    onOpenAddDocument: () -> Unit = {},
     onSelectMemberForID: (Member) -> Unit,
     onSelectDocument: (OfficialDocument) -> Unit,
     onSelectMeeting: (Meeting) -> Unit,
@@ -303,13 +304,22 @@ fun HomeScreen(
                     }
 
                     if (isAdminLoggedIn) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(
+                                onClick = onOpenAddDocument,
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                                modifier = Modifier.testTag("admin_add_doc_btn")
+                            ) {
+                                Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.White)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("दस्तावेज़ अपलोड", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
                             OutlinedButton(
                                 onClick = { showClearAllConfirmDialog = true },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
                                 modifier = Modifier.testTag("admin_clear_all_btn")
                             ) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFDC2626))
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFFDC2626))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("डेटा साफ़ करें", fontSize = 11.sp, color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
                             }
@@ -394,25 +404,16 @@ fun HomeScreen(
                                         .border(2.dp, GoldAccent, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    if (performer.photoResName == "img_best_performer") {
-                                        Image(
-                                            painter = painterResource(id = R.drawable.img_best_performer),
-                                            contentDescription = performer.fullName,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    } else {
-                                        MemberAvatar(
-                                            name = performer.fullName,
-                                            photoUri = performer.photoUri,
-                                            photoResName = performer.photoResName,
-                                            size = 64.dp,
-                                            textSize = 22,
-                                            colorIndex = performer.avatarColorIndex,
-                                            isOnline = onlineCandidateIds.contains(performer.id),
-                                            showOnlineIndicator = true
-                                        )
-                                    }
+                                    MemberAvatar(
+                                        name = performer.fullName,
+                                        photoUri = performer.photoUri,
+                                        photoResName = performer.photoResName,
+                                        size = 64.dp,
+                                        textSize = 22,
+                                        colorIndex = performer.avatarColorIndex,
+                                        isOnline = onlineCandidateIds.contains(performer.id),
+                                        showOnlineIndicator = true
+                                    )
                                 }
 
                                 Text(
@@ -600,6 +601,87 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                         onClick = { onNavigateToTab(AppTab.DONATIONS) }
                     )
+                }
+            }
+        }
+
+        // 📄 OFFICIAL DOCUMENTS PREVIEW (User Requirement: Dastavej Section)
+        if (documents.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Description, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "📄 आधिकारिक दस्तावेज़ (${documents.size})",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimaryGreen
+                            )
+                        }
+
+                        if (isAdminLoggedIn) {
+                            TextButton(onClick = onOpenAddDocument) {
+                                Text("+ नया दस्तावेज़", fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            TextButton(onClick = { onNavigateToTab(AppTab.NOTICES) }) {
+                                Text("सभी देखें →", fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    documents.take(2).forEach { doc ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onSelectDocument(doc) },
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = CardDefaults.outlinedCardBorder().copy(
+                                brush = androidx.compose.ui.graphics.SolidColor(BorderLightGreen)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(SoftMintContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Description, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(20.dp))
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = doc.title,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = TextPrimaryGreen,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${doc.category} • ${doc.publishedDate}",
+                                        fontSize = 10.sp,
+                                        color = TextSecondaryGreen
+                                    )
+                                }
+                                Text("देखें →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+                            }
+                        }
+                    }
                 }
             }
         }

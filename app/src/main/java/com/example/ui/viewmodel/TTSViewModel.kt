@@ -11,6 +11,7 @@ import com.example.data.model.Member
 import com.example.data.model.Notice
 import com.example.data.model.OfficialDocument
 import com.example.data.repository.TTSRepository
+import com.example.util.TTSNotificationHelper
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -407,6 +408,12 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 isPinned = isPinned
             )
             repository.insertNotice(notice)
+            TTSNotificationHelper.showNoticeNotification(
+                context = getApplication(),
+                title = notice.title,
+                content = notice.content,
+                priority = notice.priority
+            )
             showSnackbar("आधिकारिक सूचना सूचना-पट्ट पर जारी की गई")
         }
     }
@@ -441,6 +448,12 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 fullContent = fullContent.trim()
             )
             repository.insertDocument(doc)
+            TTSNotificationHelper.showDocumentNotification(
+                context = getApplication(),
+                title = doc.title,
+                category = doc.category,
+                summary = doc.summary
+            )
             showSnackbar("दस्तावेज़ '$title' सफलतापूर्वक सहेजा गया")
         }
     }
@@ -482,6 +495,13 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 remarks = if (remarks.isNullOrBlank()) null else remarks.trim()
             )
             repository.insertDonation(donation)
+            TTSNotificationHelper.showDonationNotification(
+                context = getApplication(),
+                donorName = donation.donorName,
+                amount = donation.amount,
+                receiptNumber = donation.transactionRef,
+                note = donation.purpose
+            )
             showSnackbar("₹$amount का चंदा ($donorName) पारदर्शी सार्वजनिक लेजर में दर्ज हो गया!")
         }
     }

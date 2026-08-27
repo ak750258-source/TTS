@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 
 class TTSRepository(
     private val ttsDao: TTSDao,
-    val firestoreService: FirebaseFirestoreService = FirebaseFirestoreService()
+    val firestoreService: FirebaseFirestoreService = FirebaseFirestoreService.getInstance()
 ) {
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
 

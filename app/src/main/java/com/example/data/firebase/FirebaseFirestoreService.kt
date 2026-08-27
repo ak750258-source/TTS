@@ -1,5 +1,6 @@
 package com.example.data.firebase
 
+import android.content.Context
 import android.util.Log
 import com.example.data.model.ChatMessage
 import com.example.data.model.Donation
@@ -7,6 +8,7 @@ import com.example.data.model.Meeting
 import com.example.data.model.Member
 import com.example.data.model.Notice
 import com.example.data.model.OfficialDocument
+import com.example.util.TTSNotificationHelper
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +45,7 @@ import java.util.concurrent.TimeUnit
  * - Live Candidate Online Indicators (🟢)
  * - Remote Data Wiping & Reset Propagation
  */
-class FirebaseFirestoreService {
+class FirebaseFirestoreService(context: Context? = null) {
 
     companion object {
         private const val TAG = "CloudSyncEngine"
@@ -51,6 +53,23 @@ class FirebaseFirestoreService {
         private const val BASE_URL = "https://ntfy.sh/$SYNC_TOPIC"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val DEVICE_ID = UUID.randomUUID().toString()
+
+        @Volatile
+        private var INSTANCE: FirebaseFirestoreService? = null
+
+        fun getInstance(context: Context? = null): FirebaseFirestoreService {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: FirebaseFirestoreService(context?.applicationContext).also {
+                    INSTANCE = it
+                }
+            }
+        }
+    }
+
+    private var appContext: Context? = context?.applicationContext
+
+    fun setContext(context: Context) {
+        appContext = context.applicationContext
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
@@ -227,6 +246,8 @@ class FirebaseFirestoreService {
             val root = JSONObject(rawJson)
             val eventType = root.optString("eventType")
             val payload = root.optJSONObject("payload")
+            val senderDeviceId = root.optString("senderDeviceId")
+            val isFromAnotherDevice = senderDeviceId.isNotBlank() && senderDeviceId != DEVICE_ID
 
             // Update sender candidate presence
             val senderMemberId = root.optLong("senderMemberId", 0L)
@@ -243,6 +264,18 @@ class FirebaseFirestoreService {
                             val channelListeners = chatListeners[msg.channelId]
                             channelListeners?.forEach { it(listOf(msg)) }
                             chatListeners["all"]?.forEach { it(listOf(msg)) }
+
+                            // Trigger phone notification if message came from another device / candidate
+                            if (isFromAnotherDevice || (currentActiveMemberId > 0 && senderMemberId != currentActiveMemberId)) {
+                                appContext?.let { ctx ->
+                                    TTSNotificationHelper.showChatNotification(
+                                        context = ctx,
+                                        senderName = msg.senderName,
+                                        channelId = msg.channelId,
+                                        messageText = msg.messageText
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -271,6 +304,18 @@ class FirebaseFirestoreService {
                             synchronized(noticeUpsertListeners) {
                                 noticeUpsertListeners.forEach { it(listOf(notice)) }
                             }
+
+                            // Trigger phone notification when notice is added
+                            if (isFromAnotherDevice) {
+                                appContext?.let { ctx ->
+                                    TTSNotificationHelper.showNoticeNotification(
+                                        context = ctx,
+                                        title = notice.title,
+                                        content = notice.content,
+                                        priority = notice.priority
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -288,6 +333,19 @@ class FirebaseFirestoreService {
                         if (donation != null) {
                             synchronized(donationUpsertListeners) {
                                 donationUpsertListeners.forEach { it(listOf(donation)) }
+                            }
+
+                            // Trigger phone notification when donation/chanda is added
+                            if (isFromAnotherDevice) {
+                                appContext?.let { ctx ->
+                                    TTSNotificationHelper.showDonationNotification(
+                                        context = ctx,
+                                        donorName = donation.donorName,
+                                        amount = donation.amount,
+                                        receiptNumber = donation.transactionRef,
+                                        note = donation.purpose
+                                    )
+                                }
                             }
                         }
                     }
@@ -325,6 +383,18 @@ class FirebaseFirestoreService {
                             synchronized(documentUpsertListeners) {
                                 documentUpsertListeners.forEach { it(listOf(doc)) }
                             }
+
+                            // Trigger notification for new official document
+                            if (isFromAnotherDevice) {
+                                appContext?.let { ctx ->
+                                    TTSNotificationHelper.showDocumentNotification(
+                                        context = ctx,
+                                        title = doc.title,
+                                        category = doc.category,
+                                        summary = doc.summary
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -356,6 +426,12 @@ class FirebaseFirestoreService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error handling cloud event: ${e.message}", e)
+        }
+    }
+
+    fun ensureConnection() {
+        if (!_isCloudConnected.value) {
+            fetchCatchupEvents()
         }
     }
 
