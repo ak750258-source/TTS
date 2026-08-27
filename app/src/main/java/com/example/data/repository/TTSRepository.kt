@@ -245,6 +245,11 @@ class TTSRepository(
         return id
     }
 
+    suspend fun updateDonation(donation: Donation) {
+        ttsDao.updateDonation(donation)
+        firestoreService.syncDonationToCloud(donation)
+    }
+
     suspend fun updateDonationVerification(id: Long, verified: Boolean) {
         ttsDao.updateDonationVerification(id, verified)
     }

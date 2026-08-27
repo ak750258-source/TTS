@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.model.Donation
 import com.example.data.model.Meeting
 import com.example.data.model.Member
 import com.example.data.model.OfficialDocument
@@ -40,6 +41,7 @@ import com.example.ui.components.AdminLoginDialog
 import com.example.ui.components.AwardBestPerformerDialog
 import com.example.ui.components.DistributeDesignationDialog
 import com.example.ui.components.DocumentViewerDialog
+import com.example.ui.components.EditDonationRecordDialog
 import com.example.ui.components.ProfileSwitcherDialog
 import com.example.ui.components.SelfRegisterMemberDialog
 import com.example.ui.components.TTSAppHeader
@@ -161,6 +163,7 @@ fun TTSMainApp(
     var showAddNoticeDialog by remember { mutableStateOf(false) }
     var showAddDonationDialog by remember { mutableStateOf(false) }
     var showAddDocumentDialog by remember { mutableStateOf(false) }
+    var donationForEdit by remember { mutableStateOf<Donation?>(null) }
     var memberForDesignation by remember { mutableStateOf<Member?>(null) }
     var memberForBestPerformer by remember { mutableStateOf<Member?>(null) }
     var memberForPhotoUpdate by remember { mutableStateOf<Member?>(null) }
@@ -312,6 +315,7 @@ fun TTSMainApp(
                         onOpenAdminLogin = { showAdminLoginDialog = true },
                         onOpenAddDonationModal = { showAddDonationDialog = true },
                         onVerifyDonation = { id, verified -> viewModel.updateDonationVerification(id, verified) },
+                        onEditDonation = { donationForEdit = it },
                         onDeleteDonation = { id -> viewModel.deleteDonation(id) },
                         onClearOldDonations = { viewModel.clearAllOldDonations() }
                     )
@@ -507,6 +511,18 @@ fun TTSMainApp(
         DocumentViewerDialog(
             doc = viewedDocument!!,
             onDismiss = { viewedDocument = null }
+        )
+    }
+
+    // Edit / Modify Donation Dialog (Admin Only)
+    if (donationForEdit != null) {
+        EditDonationRecordDialog(
+            donation = donationForEdit!!,
+            onDismiss = { donationForEdit = null },
+            onConfirm = { updatedDonation ->
+                viewModel.updateDonation(updatedDonation)
+                donationForEdit = null
+            }
         )
     }
 }

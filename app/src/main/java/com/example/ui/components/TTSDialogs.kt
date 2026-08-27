@@ -96,6 +96,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.R
+import com.example.data.model.Donation
 import com.example.data.model.Member
 import com.example.data.model.OfficialDocument
 import com.example.util.ImageUtils
@@ -148,7 +149,10 @@ fun AdminLoginDialog(
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -591,7 +595,10 @@ fun AddMemberDialog(
     var expandedWing by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -880,7 +887,10 @@ fun SelfRegisterMemberDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1232,7 +1242,10 @@ fun AddNoticeDialog(
     var content by remember { mutableStateOf("") }
     var isPinned by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1357,7 +1370,10 @@ fun AddDonationRecordDialog(
         "कमेटी आम कल्याण कोष"
     )
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1473,6 +1489,202 @@ fun AddDonationRecordDialog(
     }
 }
 
+// --- EDIT / MODIFY DONATION DIALOG IN HINDI ---
+@Composable
+fun EditDonationRecordDialog(
+    donation: Donation,
+    onDismiss: () -> Unit,
+    onConfirm: (updatedDonation: Donation) -> Unit
+) {
+    var donorName by remember { mutableStateOf(donation.donorName) }
+    var memberCode by remember { mutableStateOf(donation.donorMemberCode ?: "") }
+    var amountText by remember { mutableStateOf(donation.amount.toInt().toString()) }
+    var purpose by remember { mutableStateOf(donation.purpose) }
+    var paymentMode by remember { mutableStateOf(donation.paymentMode) }
+    var transactionRef by remember { mutableStateOf(donation.transactionRef) }
+    var remarks by remember { mutableStateOf(donation.remarks ?: "") }
+    var isVerified by remember { mutableStateOf(donation.verified) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    val purposeOptions = listOf(
+        "12 रबी-उल-अव्वल लंगर-ए-पाक व सजावट",
+        "जुलूस-ए-मोहम्मदी स्टेज व लाइट डेकोरेशन",
+        "तबर्रुक व शरबत सबील व्यवस्था",
+        "झंडे (परचम) व तोरण द्वार व्यवस्था",
+        "कमेटी आम कल्याण कोष"
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "चंदा प्रविष्टि संशोधित करें",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = TextPrimaryGreen
+                        )
+                        Text(
+                            text = "एडमिन अधिकार • रसीद संख्या: ${donation.transactionRef}",
+                            fontSize = 11.sp,
+                            color = TextSecondaryGreen
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                if (errorMsg != null) {
+                    Text(
+                        text = errorMsg!!,
+                        color = Color(0xFFDC2626),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                OutlinedTextField(
+                    value = donorName,
+                    onValueChange = { donorName = it; errorMsg = null },
+                    label = { Text("दानदाता का नाम (Donor Name) *") },
+                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = EmeraldGreen) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = memberCode,
+                    onValueChange = { memberCode = it },
+                    label = { Text("सदस्य कोड (उदा. TTS-1447-001)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it; errorMsg = null },
+                    label = { Text("चंदा राशि (₹ Amount) *") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    leadingIcon = { Text("₹", fontWeight = FontWeight.Bold, color = EmeraldGreen, fontSize = 16.sp) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = purpose,
+                    onValueChange = { purpose = it; errorMsg = null },
+                    label = { Text("दान का उद्देश्य / मद *") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Quick purpose selection
+                Text("त्वरित मद चुनें:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondaryGreen)
+                purposeOptions.forEach { opt ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (purpose == opt) SoftMintContainer else LightSageCard)
+                            .clickable { purpose = opt }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text("• $opt", fontSize = 11.sp, color = if (purpose == opt) PineGreenDark else TextPrimaryGreen, fontWeight = if (purpose == opt) FontWeight.Bold else FontWeight.Normal)
+                    }
+                }
+
+                OutlinedTextField(
+                    value = paymentMode,
+                    onValueChange = { paymentMode = it },
+                    label = { Text("भुगतान का माध्यम (Payment Mode)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = transactionRef,
+                    onValueChange = { transactionRef = it },
+                    label = { Text("UPI संदर्भ / UTR / रसीद संख्या") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = remarks,
+                    onValueChange = { remarks = it },
+                    label = { Text("विशेष टिप्पणी (Remarks)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("सत्यापित स्थिति (Verified)", fontSize = 13.sp, color = TextPrimaryGreen, fontWeight = FontWeight.Medium)
+                    Switch(
+                        checked = isVerified,
+                        onCheckedChange = { isVerified = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = PrimaryGreen)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val amt = amountText.toDoubleOrNull() ?: 0.0
+                            if (donorName.isBlank()) {
+                                errorMsg = "कृपया दानदाता का नाम दर्ज करें"
+                                return@Button
+                            }
+                            if (amt <= 0) {
+                                errorMsg = "कृपया मान्य चंदा राशि दर्ज करें"
+                                return@Button
+                            }
+                            val updated = donation.copy(
+                                donorName = donorName.trim(),
+                                donorMemberCode = if (memberCode.isBlank()) null else memberCode.trim(),
+                                amount = amt,
+                                purpose = purpose.trim(),
+                                paymentMode = paymentMode.trim(),
+                                transactionRef = transactionRef.trim().ifEmpty { donation.transactionRef },
+                                verified = isVerified,
+                                remarks = if (remarks.isBlank()) null else remarks.trim()
+                            )
+                            onConfirm(updated)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                    ) {
+                        Text("संशोधित करें (Update)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // --- ADD MEETING DIALOG IN HINDI ---
 @Composable
 fun AddMeetingDialog(
@@ -1497,7 +1709,10 @@ fun AddMeetingDialog(
     var chairperson by remember { mutableStateOf("जनाब गुलाम मुस्तफा (सदर)") }
     var agenda by remember { mutableStateOf("") }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1923,7 +2138,10 @@ fun AddDocumentDialog(
         "गोपनीय (Confidential)"
     )
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()

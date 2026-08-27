@@ -20,11 +20,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.Dns
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.net.Inet4Address
+import java.net.InetAddress
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -74,15 +77,29 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
+    private val ipv4PrioritizedDns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            return try {
+                val addresses = Dns.SYSTEM.lookup(hostname)
+                // Prioritize IPv4 addresses first to avoid unreachable IPv6 routes in mobile/container environments
+                addresses.sortedWith(compareBy { if (it is Inet4Address) 0 else 1 })
+            } catch (e: Exception) {
+                Dns.SYSTEM.lookup(hostname)
+            }
+        }
+    }
+
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
+        .dns(ipv4PrioritizedDns)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .writeTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
     private val streamingClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
+        .dns(ipv4PrioritizedDns)
+        .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS) // infinite for SSE stream
         .retryOnConnectionFailure(true)
         .build()
@@ -466,15 +483,31 @@ class FirebaseFirestoreService(context: Context? = null) {
                     .post(envelope.toString().toRequestBody(JSON_MEDIA_TYPE))
                     .build()
 
-                httpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        Log.w(TAG, "Cloud broadcast warning: ${response.code}")
-                    } else {
-                        Log.d(TAG, "Cloud broadcast success: $eventType")
+                var success = false
+                var attempts = 0
+                while (!success && attempts < 2) {
+                    attempts++
+                    try {
+                        httpClient.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) {
+                                success = true
+                                _isCloudConnected.value = true
+                                _syncStatus.value = "🟢 लाइव क्लाउड सिंक कनेक्टेड"
+                                Log.d(TAG, "Cloud broadcast success: $eventType")
+                            } else {
+                                Log.w(TAG, "Cloud broadcast warning code: ${response.code}")
+                            }
+                        }
+                    } catch (netEx: Exception) {
+                        if (attempts >= 2) {
+                            Log.w(TAG, "Cloud broadcast non-fatal note: ${netEx.message}")
+                        } else {
+                            delay(500)
+                        }
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Network broadcast error: ${e.message}")
+                Log.w(TAG, "Network broadcast exception: ${e.message}")
             }
         }
     }

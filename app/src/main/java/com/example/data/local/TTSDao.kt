@@ -111,6 +111,9 @@ interface TTSDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDonations(donations: List<Donation>)
 
+    @Update
+    suspend fun updateDonation(donation: Donation)
+
     @Query("SELECT SUM(amount) FROM donations")
     fun getTotalDonationsSum(): Flow<Double?>
 

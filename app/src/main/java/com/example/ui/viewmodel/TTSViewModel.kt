@@ -506,6 +506,13 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateDonation(donation: Donation) {
+        viewModelScope.launch {
+            repository.updateDonation(donation)
+            showSnackbar("चंदा प्रविष्टि (${donation.donorName} - ₹${donation.amount.toInt()}) सफलतापूर्वक संशोधित की गई")
+        }
+    }
+
     fun updateDonationVerification(donationId: Long, isVerified: Boolean) {
         viewModelScope.launch {
             repository.updateDonationVerification(donationId, isVerified)

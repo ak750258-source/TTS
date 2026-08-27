@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Publish
 import androidx.compose.material.icons.filled.QrCode
@@ -101,6 +102,7 @@ fun DonationScreen(
     onOpenAdminLogin: () -> Unit = {},
     onOpenAddDonationModal: () -> Unit,
     onVerifyDonation: (donationId: Long, isVerified: Boolean) -> Unit = { _, _ -> },
+    onEditDonation: (donation: Donation) -> Unit = {},
     onDeleteDonation: (donationId: Long) -> Unit = {},
     onClearOldDonations: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -110,6 +112,7 @@ fun DonationScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedPurposeFilter by remember { mutableStateOf("सभी मद (All)") }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var donationToDelete by remember { mutableStateOf<Donation?>(null) }
 
     val donationGoal = 250000.0
     val progress = (totalDonations / donationGoal).toFloat().coerceIn(0f, 1f)
@@ -610,7 +613,13 @@ fun DonationScreen(
 
                                 if (isAdminLoggedIn) {
                                     IconButton(
-                                        onClick = { onDeleteDonation(donation.id) },
+                                        onClick = { onEditDonation(donation) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = EmeraldGreen, modifier = Modifier.size(16.dp))
+                                    }
+                                    IconButton(
+                                        onClick = { donationToDelete = donation },
                                         modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
@@ -626,6 +635,36 @@ fun DonationScreen(
         item {
             Spacer(modifier = Modifier.height(30.dp))
         }
+    }
+
+    // Single item delete confirmation dialog
+    if (donationToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { donationToDelete = null },
+            title = { Text("चंदा प्रविष्टि हटाएं (Delete Donation)", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("क्या आप निश्चित रूप से '${donationToDelete?.donorName}' का ₹${donationToDelete?.amount?.toInt()} का चंदा रिकॉर्ड हटाना चाहते हैं?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val id = donationToDelete?.id
+                        donationToDelete = null
+                        if (id != null) {
+                            onDeleteDonation(id)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                ) {
+                    Text("हाँ, हटाएं", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { donationToDelete = null }) {
+                    Text("रद्द करें")
+                }
+            }
+        )
     }
 
     // Clear confirmation dialog
