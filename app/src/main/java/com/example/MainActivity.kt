@@ -184,7 +184,10 @@ fun TTSMainApp(viewModel: TTSViewModel = viewModel()) {
                         members = members,
                         selectedMember = previewIDCardMember ?: activeMember,
                         onSelectMember = { viewModel.selectMemberForIDCard(it) },
-                        onNavigateToMembers = { viewModel.setTab(AppTab.MEMBERS) }
+                        onNavigateToMembers = { viewModel.setTab(AppTab.MEMBERS) },
+                        onUpdatePhoto = { memberId, photoUri ->
+                            viewModel.updateMemberPhoto(memberId, photoUri)
+                        }
                     )
                 }
 

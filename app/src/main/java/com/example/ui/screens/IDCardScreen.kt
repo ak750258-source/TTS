@@ -86,6 +86,7 @@ fun IDCardScreen(
     selectedMember: Member?,
     onSelectMember: (Member) -> Unit,
     onNavigateToMembers: () -> Unit,
+    onUpdatePhoto: (memberId: Long, photoUri: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -240,7 +241,7 @@ fun IDCardScreen(
                                                 contentScale = ContentScale.Crop
                                             )
                                         } else {
-                                            MemberAvatar(name = m.fullName, size = 22.dp, textSize = 8, colorIndex = m.avatarColorIndex)
+                                            MemberAvatar(name = m.fullName, photoUri = m.photoUri, photoResName = m.photoResName, size = 22.dp, textSize = 8, colorIndex = m.avatarColorIndex)
                                         }
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
@@ -261,7 +262,12 @@ fun IDCardScreen(
         // Live ID Card Component (With Muhammad flag background & photo, NO blood group)
         if (currentMember != null) {
             item {
-                MemberIDCardView(member = currentMember)
+                MemberIDCardView(
+                    member = currentMember,
+                    onUpdatePhoto = { photoUri ->
+                        onUpdatePhoto(currentMember.id, photoUri)
+                    }
+                )
             }
 
             // Quick Info & Share Actions

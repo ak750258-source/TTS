@@ -98,6 +98,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.R
 import com.example.data.model.Member
 import com.example.data.model.OfficialDocument
+import com.example.util.ImageUtils
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.example.ui.theme.BorderLightGreen
 import com.example.ui.theme.DeepForestGreen
 import com.example.ui.theme.EmeraldGreen
@@ -570,12 +573,17 @@ fun AddMemberDialog(
     var isBestPerformer by remember { mutableStateOf(false) }
     var bestBadge by remember { mutableStateOf("12 रबी-उल-अव्वल सर्वश्रेष्ठ खिदमतगार") }
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            selectedPhotoUri = uri.toString()
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri)
+                selectedPhotoUri = base64 ?: uri.toString()
+            }
         }
     }
 
@@ -859,12 +867,17 @@ fun SelfRegisterMemberDialog(
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
     var expandedWing by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            selectedPhotoUri = uri.toString()
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri)
+                selectedPhotoUri = base64 ?: uri.toString()
+            }
         }
     }
 
@@ -1098,12 +1111,17 @@ fun UpdateMemberPhotoDialog(
     onConfirm: (photoUri: String) -> Unit
 ) {
     var photoUri by remember { mutableStateOf(member.photoUri) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            photoUri = uri.toString()
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri)
+                photoUri = base64 ?: uri.toString()
+            }
         }
     }
 

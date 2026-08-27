@@ -28,6 +28,10 @@ class TTSRepository(
         firestoreService.updateCandidatePresence(memberId, memberName, isOnline)
     }
 
+    fun triggerCloudCatchup() {
+        firestoreService.fetchCatchupEvents()
+    }
+
     init {
         // Start real-time Firestore listeners to sync from cloud to local Room database
         startCloudSync()
@@ -35,38 +39,105 @@ class TTSRepository(
 
     private fun startCloudSync() {
         // Sync Members from Cloud
-        firestoreService.listenToMembers { cloudMembers ->
-            if (cloudMembers.isNotEmpty()) {
+        firestoreService.listenToMembers(
+            onMembersUpdated = { cloudMembers ->
+                if (cloudMembers.isNotEmpty()) {
+                    repositoryScope.launch {
+                        ttsDao.insertMembers(cloudMembers)
+                    }
+                }
+            },
+            onMemberDeleted = { memberId ->
                 repositoryScope.launch {
-                    ttsDao.insertMembers(cloudMembers)
+                    ttsDao.deleteMemberById(memberId)
                 }
             }
-        }
+        )
 
         // Sync Donations from Cloud
-        firestoreService.listenToDonations { cloudDonations ->
-            if (cloudDonations.isNotEmpty()) {
+        firestoreService.listenToDonations(
+            onDonationsUpdated = { cloudDonations ->
+                if (cloudDonations.isNotEmpty()) {
+                    repositoryScope.launch {
+                        ttsDao.insertDonations(cloudDonations)
+                    }
+                }
+            },
+            onDonationDeleted = { donationId ->
                 repositoryScope.launch {
-                    ttsDao.insertDonations(cloudDonations)
+                    ttsDao.deleteDonationById(donationId)
                 }
             }
-        }
+        )
 
         // Sync Meetings from Cloud
-        firestoreService.listenToMeetings { cloudMeetings ->
-            if (cloudMeetings.isNotEmpty()) {
+        firestoreService.listenToMeetings(
+            onMeetingsUpdated = { cloudMeetings ->
+                if (cloudMeetings.isNotEmpty()) {
+                    repositoryScope.launch {
+                        ttsDao.insertMeetings(cloudMeetings)
+                    }
+                }
+            },
+            onMeetingDeleted = { meetingId ->
                 repositoryScope.launch {
-                    ttsDao.insertMeetings(cloudMeetings)
+                    ttsDao.deleteMeetingById(meetingId)
+                }
+            }
+        )
+
+        // Sync Notices from Cloud
+        firestoreService.listenToNotices(
+            onNoticesUpdated = { cloudNotices ->
+                if (cloudNotices.isNotEmpty()) {
+                    repositoryScope.launch {
+                        ttsDao.insertNotices(cloudNotices)
+                    }
+                }
+            },
+            onNoticeDeleted = { noticeId ->
+                repositoryScope.launch {
+                    ttsDao.deleteNoticeById(noticeId)
+                }
+            }
+        )
+
+        // Sync Documents from Cloud
+        firestoreService.listenToDocuments(
+            onDocsUpdated = { docs ->
+                if (docs.isNotEmpty()) {
+                    repositoryScope.launch {
+                        ttsDao.insertDocuments(docs)
+                    }
+                }
+            },
+            onDocDeleted = { docId ->
+                repositoryScope.launch {
+                    ttsDao.deleteDocumentById(docId)
+                }
+            }
+        )
+
+        // Sync Chat from Cloud across all channels immediately
+        listOf("general", "announcements", "duas", "management", "all").forEach { ch ->
+            firestoreService.listenToChat(ch) { messages ->
+                if (messages.isNotEmpty()) {
+                    repositoryScope.launch {
+                        ttsDao.insertChatMessages(messages)
+                    }
                 }
             }
         }
 
-        // Sync Notices from Cloud
-        firestoreService.listenToNotices { cloudNotices ->
-            if (cloudNotices.isNotEmpty()) {
-                repositoryScope.launch {
-                    ttsDao.insertNotices(cloudNotices)
-                }
+        // Global data wipe listener
+        firestoreService.listenToClearAll {
+            repositoryScope.launch {
+                ttsDao.clearAllChatMessages()
+                ttsDao.clearAllDonations()
+                ttsDao.clearAllNotices()
+                ttsDao.clearAllMeetings()
+                ttsDao.clearAllDocuments()
+                ttsDao.clearAllMembers()
             }
         }
     }
@@ -132,12 +203,23 @@ class TTSRepository(
         firestoreService.syncMeetingToCloud(saved)
         return id
     }
-    suspend fun deleteMeeting(id: Long) = ttsDao.deleteMeetingById(id)
+    suspend fun deleteMeeting(id: Long) {
+        ttsDao.deleteMeetingById(id)
+        firestoreService.deleteMeetingFromCloud(id)
+    }
 
     // Documents
     val allDocuments: Flow<List<OfficialDocument>> = ttsDao.getAllDocuments()
-    suspend fun insertDocument(doc: OfficialDocument): Long = ttsDao.insertDocument(doc)
-    suspend fun deleteDocument(id: Long) = ttsDao.deleteDocumentById(id)
+    suspend fun insertDocument(doc: OfficialDocument): Long {
+        val id = ttsDao.insertDocument(doc)
+        val saved = doc.copy(id = id)
+        firestoreService.syncDocumentToCloud(saved)
+        return id
+    }
+    suspend fun deleteDocument(id: Long) {
+        ttsDao.deleteDocumentById(id)
+        firestoreService.deleteDocumentFromCloud(id)
+    }
 
     // Notices
     val allNotices: Flow<List<Notice>> = ttsDao.getAllNotices()
@@ -147,7 +229,10 @@ class TTSRepository(
         firestoreService.syncNoticeToCloud(saved)
         return id
     }
-    suspend fun deleteNotice(id: Long) = ttsDao.deleteNoticeById(id)
+    suspend fun deleteNotice(id: Long) {
+        ttsDao.deleteNoticeById(id)
+        firestoreService.deleteNoticeFromCloud(id)
+    }
 
     // Donations
     val allDonations: Flow<List<Donation>> = ttsDao.getAllDonations()
@@ -224,4 +309,3 @@ class TTSRepository(
         firestoreService.clearAllAppCloudData()
     }
 }
-

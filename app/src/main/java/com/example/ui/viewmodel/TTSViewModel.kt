@@ -47,6 +47,11 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
     val syncStatus: StateFlow<String> = repository.syncStatus
     val onlineCandidateIds: StateFlow<Set<Long>> = repository.onlineCandidateIds
 
+    fun triggerCloudSync() {
+        repository.triggerCloudCatchup()
+        showSnackbar("🟢 लाइव क्लाउड सिंक रीफ्रेश किया जा रहा है...")
+    }
+
     // Navigation State
     private val _currentTab = MutableStateFlow(AppTab.HOME)
     val currentTab: StateFlow<AppTab> = _currentTab.asStateFlow()

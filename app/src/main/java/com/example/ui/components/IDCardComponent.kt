@@ -10,6 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import com.example.util.ImageUtils
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -103,14 +106,18 @@ fun MemberIDCardView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var isBackSide by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null && onUpdatePhoto != null) {
-            onUpdatePhoto(uri.toString())
-            Toast.makeText(context, "फोटो सफलतापूर्वक अपलोड हो गई!", Toast.LENGTH_SHORT).show()
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri)
+                onUpdatePhoto(base64 ?: uri.toString())
+                Toast.makeText(context, "फोटो सफलतापूर्वक अपडेट हो गई!", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
