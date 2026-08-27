@@ -118,8 +118,8 @@ class TTSRepository(
             }
         )
 
-        // Sync Chat from Cloud across all channels immediately
-        listOf("general", "announcements", "duas", "management", "all").forEach { ch ->
+        // Sync Chat from Cloud across all channels and global stream immediately
+        listOf("general", "rabi_ul_awwal", "donations", "announcements", "duas", "management", "all").forEach { ch ->
             firestoreService.listenToChat(ch) { messages ->
                 if (messages.isNotEmpty()) {
                     repositoryScope.launch {

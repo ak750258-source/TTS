@@ -261,9 +261,19 @@ class FirebaseFirestoreService(context: Context? = null) {
                     if (payload != null) {
                         val msg = parseChatMessage(payload)
                         if (msg != null) {
-                            val channelListeners = chatListeners[msg.channelId]
-                            channelListeners?.forEach { it(listOf(msg)) }
-                            chatListeners["all"]?.forEach { it(listOf(msg)) }
+                            // Notify all-channel global listeners
+                            chatListeners["all"]?.let { allList ->
+                                synchronized(allList) {
+                                    allList.toList().forEach { it(listOf(msg)) }
+                                }
+                            }
+
+                            // Notify channel-specific listeners
+                            chatListeners[msg.channelId]?.let { channelList ->
+                                synchronized(channelList) {
+                                    channelList.toList().forEach { it(listOf(msg)) }
+                                }
+                            }
 
                             // Trigger phone notification if message came from another device / candidate
                             if (isFromAnotherDevice || (currentActiveMemberId > 0 && senderMemberId != currentActiveMemberId)) {

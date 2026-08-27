@@ -656,16 +656,15 @@ fun AddMemberDialog(
                             .border(1.5.dp, EmeraldGreen, RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (selectedPhotoUri != null) {
-                            AsyncImage(
-                                model = selectedPhotoUri,
-                                contentDescription = "Selected Photo",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Icon(Icons.Default.AddAPhoto, contentDescription = "Upload Photo", tint = EmeraldGreen, modifier = Modifier.size(24.dp))
-                        }
+                        SafePhotoDisplay(
+                            photoUri = selectedPhotoUri,
+                            contentDescription = "Selected Photo",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            placeholder = {
+                                Icon(Icons.Default.AddAPhoto, contentDescription = "Upload Photo", tint = EmeraldGreen, modifier = Modifier.size(24.dp))
+                            }
+                        )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -960,19 +959,18 @@ fun SelfRegisterMemberDialog(
                                 .border(2.dp, GoldAccent, RoundedCornerShape(10.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (selectedPhotoUri != null) {
-                                AsyncImage(
-                                    model = selectedPhotoUri,
-                                    contentDescription = "Uploaded Photo",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(26.dp))
-                                    Text("फोटो", fontSize = 9.sp, color = TextSecondaryGreen, fontWeight = FontWeight.Bold)
+                            SafePhotoDisplay(
+                                photoUri = selectedPhotoUri,
+                                contentDescription = "Uploaded Photo",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                placeholder = {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(26.dp))
+                                        Text("फोटो", fontSize = 9.sp, color = TextSecondaryGreen, fontWeight = FontWeight.Bold)
+                                    }
                                 }
-                            }
+                            )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -1172,20 +1170,19 @@ fun UpdateMemberPhotoDialog(
                         .clickable { photoPickerLauncher.launch("image/*") },
                     contentAlignment = Alignment.Center
                 ) {
-                    if (!photoUri.isNullOrBlank()) {
-                        AsyncImage(
-                            model = photoUri,
-                            contentDescription = "Member Photo",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(36.dp))
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("फोटो चुनें", fontSize = 11.sp, color = TextPrimaryGreen, fontWeight = FontWeight.Bold)
+                    SafePhotoDisplay(
+                        photoUri = photoUri,
+                        contentDescription = "Member Photo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        placeholder = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(36.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("फोटो चुनें", fontSize = 11.sp, color = TextPrimaryGreen, fontWeight = FontWeight.Bold)
+                            }
                         }
-                    }
+                    )
                 }
 
                 Button(

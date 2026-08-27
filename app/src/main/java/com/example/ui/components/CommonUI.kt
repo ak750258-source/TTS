@@ -76,6 +76,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.remember
+import com.example.util.ImageUtils
 import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.model.Member
@@ -108,6 +111,37 @@ val AvatarColors = listOf(
 )
 
 @Composable
+fun SafePhotoDisplay(
+    photoUri: String?,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+    placeholder: @Composable () -> Unit = {}
+) {
+    val bitmap = remember(photoUri) {
+        ImageUtils.getBitmapFromPhotoUri(photoUri)
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = contentScale
+        )
+    } else if (!photoUri.isNullOrBlank()) {
+        AsyncImage(
+            model = photoUri,
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = contentScale
+        )
+    } else {
+        placeholder()
+    }
+}
+
+@Composable
 fun MemberAvatar(
     name: String,
     modifier: Modifier = Modifier,
@@ -120,6 +154,9 @@ fun MemberAvatar(
     showOnlineIndicator: Boolean = true
 ) {
     val bgColor = AvatarColors.getOrElse(colorIndex % AvatarColors.size) { AvatarColors[0] }
+    val bitmap = remember(photoUri) {
+        ImageUtils.getBitmapFromPhotoUri(photoUri)
+    }
 
     Box(
         modifier = modifier.size(size),
@@ -133,7 +170,14 @@ fun MemberAvatar(
                 .border(1.5.dp, Color.White.copy(alpha = 0.8f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            if (!photoUri.isNullOrBlank()) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = name,
+                    modifier = Modifier.size(size),
+                    contentScale = ContentScale.Crop
+                )
+            } else if (!photoUri.isNullOrBlank()) {
                 AsyncImage(
                     model = photoUri,
                     contentDescription = name,

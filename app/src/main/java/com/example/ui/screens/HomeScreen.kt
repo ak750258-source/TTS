@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +39,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Security
@@ -49,6 +52,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
@@ -251,86 +255,231 @@ fun HomeScreen(
             }
         }
 
-        // Admin Portal Status Banner
+        // Admin Portal / Control Dashboard Section
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isAdminLoggedIn) SoftMintContainer else Color(0xFFFFFBEB)
-                ),
-                border = CardDefaults.outlinedCardBorder().copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(
-                        if (isAdminLoggedIn) EmeraldGreen else GoldAccent
-                    )
-                )
-            ) {
-                Row(
+            if (isAdminLoggedIn) {
+                // Expanded Full Admin Control Dashboard
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .clip(RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = SoftMintContainer),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(EmeraldGreen)
+                    )
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(if (isAdminLoggedIn) EmeraldGreen else GoldAccent),
-                            contentAlignment = Alignment.Center
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Top Header: Admin Status Badge & Logout Button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                if (isAdminLoggedIn) Icons.Default.LockOpen else Icons.Default.AdminPanelSettings,
-                                contentDescription = null,
-                                tint = if (isAdminLoggedIn) Color.White else PineGreenDark,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = if (isAdminLoggedIn) "🔐 एडमिन मोड सक्रिय (Admin Logged In)" else "🔐 एडमिन सेक्शन (Admin Portal)",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimaryGreen
-                            )
-                            Text(
-                                text = if (isAdminLoggedIn) "आप पद वितरण, नोटिस व सदस्य संपादित कर सकते हैं" else "पद वितरण व बदलाव हेतु लॉगिन करें (admin/admin)",
-                                fontSize = 10.sp,
-                                color = TextSecondaryGreen
-                            )
-                        }
-                    }
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(EmeraldGreen),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.AdminPanelSettings,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "🔐 मुख्य एडमिन कंट्रोल पैनल",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimaryGreen
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(EmeraldGreen.copy(alpha = 0.15f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("सक्रिय (Active)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = DeepForestGreen)
+                                        }
+                                    }
+                                    Text(
+                                        text = "दस्तावेज़, सदस्य, नोटिस व डेटा प्रबंधन सक्षम है",
+                                        fontSize = 10.sp,
+                                        color = TextSecondaryGreen
+                                    )
+                                }
+                            }
 
-                    if (isAdminLoggedIn) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedButton(
+                                onClick = onLogoutAdmin,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
+                                border = BorderStroke(1.dp, Color(0xFFDC2626).copy(alpha = 0.5f)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.testTag("admin_logout_btn")
+                            ) {
+                                Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color(0xFFDC2626))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("लॉगआउट", fontSize = 11.sp, color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        HorizontalDivider(color = BorderLightGreen.copy(alpha = 0.6f))
+
+                        Text(
+                            text = "⚡ त्वरित एडमिन प्रबंधन (Admin Actions):",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimaryGreen
+                        )
+
+                        // Action Row 1: Document Upload & Notice Post
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Button(
                                 onClick = onOpenAddDocument,
                                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-                                modifier = Modifier.testTag("admin_add_doc_btn")
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                modifier = Modifier.weight(1f).testTag("admin_add_doc_btn")
                             ) {
                                 Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.White)
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
                                 Text("दस्तावेज़ अपलोड", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             }
-                            OutlinedButton(
-                                onClick = { showClearAllConfirmDialog = true },
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
-                                modifier = Modifier.testTag("admin_clear_all_btn")
+
+                            Button(
+                                onClick = onOpenAddNotice,
+                                colors = ButtonDefaults.buttonColors(containerColor = PineGreenDark),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                modifier = Modifier.weight(1f).testTag("admin_add_notice_btn")
                             ) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFFDC2626))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("डेटा साफ़ करें", fontSize = 11.sp, color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
-                            }
-                            OutlinedButton(
-                                onClick = onLogoutAdmin,
-                                modifier = Modifier.testTag("admin_logout_btn")
-                            ) {
-                                Text("लॉगआउट", fontSize = 11.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.Campaign, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.White)
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text("नोटिस जारी करें", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
-                    } else {
+
+                        // Action Row 2: Add Member & Schedule Meeting
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onOpenAddMember,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = PrimaryGreen),
+                                border = BorderStroke(1.dp, PrimaryGreen.copy(alpha = 0.4f)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                modifier = Modifier.weight(1f).testTag("admin_add_member_btn")
+                            ) {
+                                Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(15.dp), tint = PrimaryGreen)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("सदस्य जोड़ें", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+                            }
+
+                            OutlinedButton(
+                                onClick = onOpenAddMeeting,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = PrimaryGreen),
+                                border = BorderStroke(1.dp, PrimaryGreen.copy(alpha = 0.4f)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                modifier = Modifier.weight(1f).testTag("admin_add_meeting_btn")
+                            ) {
+                                Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(15.dp), tint = PrimaryGreen)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("मीटिंग तय करें", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+                            }
+                        }
+
+                        // Danger Action: Clear All Data (Retained & Prominently Styled)
+                        OutlinedButton(
+                            onClick = { showClearAllConfirmDialog = true },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color(0xFFFEF2F2),
+                                contentColor = Color(0xFFDC2626)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth().testTag("admin_clear_all_btn")
+                        ) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFDC2626))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("🗑️ सभी डेटा साफ़ करें (Wipe All App Data)", fontSize = 11.sp, color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            } else {
+                // Admin Login Prompt Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp)),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(GoldAccent)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(GoldAccent),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.AdminPanelSettings,
+                                    contentDescription = null,
+                                    tint = PineGreenDark,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "🔐 एडमिन सेक्शन (Admin Portal)",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimaryGreen
+                                )
+                                Text(
+                                    text = "पद वितरण, नोटिस, दस्तावेज़ व डेटा प्रबंधन हेतु लॉगिन करें",
+                                    fontSize = 10.sp,
+                                    color = TextSecondaryGreen
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = onOpenAdminLogin,
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),

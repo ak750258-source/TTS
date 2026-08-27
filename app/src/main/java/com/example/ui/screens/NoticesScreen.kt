@@ -307,15 +307,16 @@ fun NoticesScreen(
                                 )
                             }
 
-                            if (isAdminLoggedIn) {
-                                Button(
-                                    onClick = onAddDocumentClick,
-                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("दस्तावेज़ जोड़ें", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                                }
+                            Button(
+                                onClick = {
+                                    if (isAdminLoggedIn) onAddDocumentClick() else onOpenAdminLogin()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                                modifier = Modifier.testTag("add_doc_header_btn")
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (isAdminLoggedIn) "दस्तावेज़ जोड़ें" else "एडमिन अपलोड", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

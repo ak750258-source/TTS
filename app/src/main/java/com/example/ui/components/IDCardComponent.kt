@@ -343,31 +343,32 @@ fun IDCardFrontSide(
                                 .then(if (onPickPhoto != null) Modifier.clickable { onPickPhoto() } else Modifier),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (!member.photoUri.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = member.photoUri,
-                                    contentDescription = "Member Photo - ${member.fullName}",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else if (member.photoResName == "img_best_performer") {
-                                Image(
-                                    painter = painterResource(id = R.drawable.img_best_performer),
-                                    contentDescription = "Member Photo",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                MemberAvatar(
-                                    name = member.fullName,
-                                    photoUri = member.photoUri,
-                                    photoResName = member.photoResName,
-                                    size = 78.dp,
-                                    textSize = 28,
-                                    colorIndex = member.avatarColorIndex,
-                                    showOnlineIndicator = false
-                                )
-                            }
+                            SafePhotoDisplay(
+                                photoUri = member.photoUri,
+                                contentDescription = "Member Photo - ${member.fullName}",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                placeholder = {
+                                    if (member.photoResName == "img_best_performer") {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.img_best_performer),
+                                            contentDescription = "Member Photo",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        MemberAvatar(
+                                            name = member.fullName,
+                                            photoUri = null,
+                                            photoResName = null,
+                                            size = 78.dp,
+                                            textSize = 28,
+                                            colorIndex = member.avatarColorIndex,
+                                            showOnlineIndicator = false
+                                        )
+                                    }
+                                }
+                            )
 
                             // Camera upload icon hint overlay if editable
                             if (onPickPhoto != null) {
