@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.example.data.model.ChatMessage
 import com.example.data.model.Donation
+import com.example.data.model.Expense
 import com.example.data.model.Meeting
 import com.example.data.model.Member
 import com.example.data.model.Notice
@@ -19,6 +20,9 @@ interface TTSDao {
     // --- MEMBERS ---
     @Query("SELECT * FROM members ORDER BY id ASC")
     fun getAllMembers(): Flow<List<Member>>
+
+    @Query("SELECT * FROM members ORDER BY id ASC")
+    suspend fun getAllMembersList(): List<Member>
 
     @Query("SELECT * FROM members WHERE isBestPerformer = 1 ORDER BY id ASC")
     fun getBestPerformers(): Flow<List<Member>>
@@ -105,6 +109,12 @@ interface TTSDao {
     @Query("SELECT * FROM donations ORDER BY timestamp DESC")
     fun getAllDonations(): Flow<List<Donation>>
 
+    @Query("SELECT * FROM donations WHERE verified = 1 ORDER BY timestamp DESC")
+    fun getApprovedDonations(): Flow<List<Donation>>
+
+    @Query("SELECT * FROM donations WHERE verified = 0 ORDER BY timestamp DESC")
+    fun getPendingDonations(): Flow<List<Donation>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDonation(donation: Donation): Long
 
@@ -117,6 +127,9 @@ interface TTSDao {
     @Query("SELECT SUM(amount) FROM donations")
     fun getTotalDonationsSum(): Flow<Double?>
 
+    @Query("SELECT SUM(amount) FROM donations WHERE verified = 1")
+    fun getTotalApprovedDonationsSum(): Flow<Double?>
+
     @Query("UPDATE donations SET verified = :verified WHERE id = :id")
     suspend fun updateDonationVerification(id: Long, verified: Boolean)
 
@@ -125,6 +138,28 @@ interface TTSDao {
 
     @Query("DELETE FROM donations")
     suspend fun clearAllDonations()
+
+    // --- EXPENSES (खर्च विवरण) ---
+    @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
+    fun getAllExpenses(): Flow<List<Expense>>
+
+    @Query("SELECT SUM(amount) FROM expenses")
+    fun getTotalExpensesSum(): Flow<Double?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExpense(expense: Expense): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExpenses(expenses: List<Expense>)
+
+    @Update
+    suspend fun updateExpense(expense: Expense)
+
+    @Query("DELETE FROM expenses WHERE id = :id")
+    suspend fun deleteExpenseById(id: Long)
+
+    @Query("DELETE FROM expenses")
+    suspend fun clearAllExpenses()
 
     // --- CHAT MESSAGES ---
     @Query("SELECT * FROM chat_messages WHERE channelId = :channelId ORDER BY timestamp ASC")

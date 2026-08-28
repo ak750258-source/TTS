@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -110,6 +111,7 @@ fun MembersScreen(
     onUpdatePhoto: (Member) -> Unit = {},
     onSelectForIDCard: (Member) -> Unit,
     onDeleteMember: (memberId: Long, memberName: String) -> Unit,
+    onTriggerSync: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -182,7 +184,18 @@ fun MembersScreen(
                                 )
                             }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                IconButton(
+                                    onClick = onTriggerSync,
+                                    modifier = Modifier.size(32.dp).testTag("members_sync_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sync,
+                                        contentDescription = "सिंक करें",
+                                        tint = PrimaryGreen,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                                 if (isAdminLoggedIn) {
                                     Box(
                                         modifier = Modifier

@@ -92,11 +92,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.R
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Receipt
 import com.example.data.model.Donation
+import com.example.data.model.Expense
 import com.example.data.model.Member
 import com.example.data.model.OfficialDocument
 import com.example.util.ImageUtils
@@ -1353,14 +1357,28 @@ fun AddNoticeDialog(
 @Composable
 fun AddDonationRecordDialog(
     onDismiss: () -> Unit,
-    onConfirm: (donorName: String, memberCode: String?, amount: Double, purpose: String, paymentMode: String, transactionRef: String, remarks: String?) -> Unit
+    onConfirm: (donorName: String, memberCode: String?, amount: Double, purpose: String, paymentMode: String, transactionRef: String, remarks: String?, paymentProofUri: String?) -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var donorName by remember { mutableStateOf("") }
     var memberCode by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("1100") }
     var purpose by remember { mutableStateOf("12 रबी-उल-अव्वल लंगर-ए-पाक व सजावट") }
     var transactionRef by remember { mutableStateOf("") }
     var remarks by remember { mutableStateOf("") }
+    var paymentProofUri by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri)
+                paymentProofUri = base64 ?: uri.toString()
+            }
+        }
+    }
 
     val purposeOptions = listOf(
         "12 रबी-उल-अव्वल लंगर-ए-पाक व सजावट",
@@ -1449,6 +1467,40 @@ fun AddDonationRecordDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // Attachment / Payment Proof Picker
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("भुगतान का प्रमाण / रसीद स्क्रीनशॉट:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimaryGreen)
+                    if (paymentProofUri != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SoftMintContainer)
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Receipt, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("रसीद / स्क्रीनशॉट संलग्न है ✓", fontSize = 12.sp, color = TextPrimaryGreen, fontWeight = FontWeight.Bold)
+                            }
+                            IconButton(onClick = { paymentProofUri = null }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { photoPickerLauncher.launch("image/*") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("UPI स्क्रीनशॉट / पर्ची जोड़ें", fontSize = 12.sp, color = PrimaryGreen)
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = remarks,
                     onValueChange = { remarks = it },
@@ -1475,7 +1527,8 @@ fun AddDonationRecordDialog(
                                     purpose,
                                     "UPI (ak750258@icici)",
                                     transactionRef,
-                                    remarks
+                                    remarks,
+                                    paymentProofUri
                                 )
                             }
                         },
@@ -1965,6 +2018,57 @@ fun DocumentViewerDialog(
                             lineHeight = 18.sp
                         )
                     }
+
+                    // Attached File / Photo / Document View
+                    if (!doc.attachmentUri.isNullOrBlank()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = SoftMintContainer),
+                            border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(EmeraldGreen))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.AttachFile, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = doc.attachmentName ?: "संलग्न आधिकारिक फाइल / रसीद",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = TextPrimaryGreen
+                                        )
+                                    }
+                                    Text("प्रमाणित प्रति", fontSize = 10.sp, color = EmeraldGreen, fontWeight = FontWeight.Bold)
+                                }
+
+                                if (doc.attachmentUri.startsWith("data:image") || doc.attachmentUri.length > 50) {
+                                    val bitmap = remember(doc.attachmentUri) { ImageUtils.getBitmapFromPhotoUri(doc.attachmentUri)?.asImageBitmap() }
+                                    if (bitmap != null) {
+                                        Image(
+                                            bitmap = bitmap,
+                                            contentDescription = "Document Attachment",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(200.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .border(1.dp, BorderLightGreen, RoundedCornerShape(8.dp)),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Footer
@@ -2105,7 +2209,7 @@ fun ProfileSwitcherDialog(
     }
 }
 
-// --- ADD DOCUMENT DIALOG IN HINDI (ADMIN ONLY - REAL-TIME CLOUD SYNCED) ---
+// --- ADD DOCUMENT DIALOG IN HINDI (ADMIN ONLY - REAL-TIME CLOUD SYNCED WITH ATTACHMENT UPLOAD) ---
 @Composable
 fun AddDocumentDialog(
     onDismiss: () -> Unit,
@@ -2114,14 +2218,32 @@ fun AddDocumentDialog(
         category: String,
         accessLevel: String,
         summary: String,
-        fullContent: String
+        fullContent: String,
+        attachmentUri: String?,
+        attachmentName: String?
     ) -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var title by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("प्रशासनिक आदेश") }
     var accessLevel by remember { mutableStateOf("सार्वजनिक (Public)") }
     var summary by remember { mutableStateOf("") }
     var fullContent by remember { mutableStateOf("") }
+    var attachmentUri by remember { mutableStateOf<String?>(null) }
+    var attachmentName by remember { mutableStateOf<String?>(null) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri)
+                attachmentUri = base64 ?: uri.toString()
+                attachmentName = "संलग्नक_${System.currentTimeMillis().toString().takeLast(6)}.jpg"
+            }
+        }
+    }
 
     val categoryOptions = listOf(
         "प्रशासनिक आदेश",
@@ -2169,7 +2291,7 @@ fun AddDocumentDialog(
                             color = TextPrimaryGreen
                         )
                         Text(
-                            text = "सभी सदस्यों व जनता के लिए लाइव क्लाउड सिंक",
+                            text = "संलग्नक सहित सभी डिवाइस पर लाइव क्लाउड सिंक",
                             fontSize = 11.sp,
                             color = TextSecondaryGreen
                         )
@@ -2214,6 +2336,51 @@ fun AddDocumentDialog(
                                     color = if (isSel) Color.White else TextPrimaryGreen
                                 )
                             }
+                        }
+                    }
+                }
+
+                // File / Attachment Upload Box
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "दस्तावेज़ फाइल / स्कैन प्रति संलग्न करें (Attachment):",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimaryGreen
+                    )
+                    if (attachmentUri != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SoftMintContainer)
+                                .border(1.dp, EmeraldGreen, RoundedCornerShape(10.dp))
+                                .padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AttachFile, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = attachmentName ?: "संलग्नक फाइल अपलोड हुई",
+                                    fontSize = 12.sp,
+                                    color = TextPrimaryGreen,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            IconButton(onClick = { attachmentUri = null; attachmentName = null }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { filePickerLauncher.launch("*/*") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("फाइल / स्कैन की हुई PDF या फोटो जोड़ें", fontSize = 12.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -2265,8 +2432,8 @@ fun AddDocumentDialog(
                     placeholder = { Text("दस्तावेज़ के सभी नियम, बिंदु और निर्देश विस्तार से यहाँ लिखें...") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp),
-                    maxLines = 8
+                        .height(130.dp),
+                    maxLines = 7
                 )
 
                 Row(
@@ -2285,13 +2452,384 @@ fun AddDocumentDialog(
                                     category,
                                     accessLevel,
                                     summary,
-                                    if (fullContent.isBlank()) summary else fullContent
+                                    if (fullContent.isBlank()) summary else fullContent,
+                                    attachmentUri,
+                                    attachmentName
                                 )
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
                         Text("दस्तावेज़ अपलोड करें (Publish)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- ADD EXPENSE DIALOG (खर्च विवरण - KHARCH VIVRAN) ---
+@Composable
+fun AddExpenseDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (
+        title: String,
+        category: String,
+        amount: Double,
+        spentBy: String,
+        receiptRef: String?,
+        attachmentUri: String?,
+        remarks: String?
+    ) -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var title by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("लंगर-ए-पाक") }
+    var amountText by remember { mutableStateOf("") }
+    var spentBy by remember { mutableStateOf("हाफिज मोहम्मद ताहिर (कोषाध्यक्ष)") }
+    var receiptRef by remember { mutableStateOf("") }
+    var remarks by remember { mutableStateOf("") }
+    var attachmentUri by remember { mutableStateOf<String?>(null) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri)
+                attachmentUri = base64 ?: uri.toString()
+            }
+        }
+    }
+
+    val expenseCategories = listOf(
+        "लंगर-ए-पाक",
+        "स्टेज व साउंड",
+        "डेकोरेशन व रोशनी",
+        "जुलूस इंतजाम",
+        "प्रशासनिक व विविध"
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "नया खर्च विवरण जोड़ें",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = TextPrimaryGreen
+                        )
+                        Text(
+                            text = "पारदर्शी व्यय लेजर • शेष बचत स्वतः कैल्क्युलेट होगी",
+                            fontSize = 11.sp,
+                            color = TextSecondaryGreen
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it; errorMsg = null },
+                    label = { Text("खर्च का नाम / मद (Expense Title) *") },
+                    placeholder = { Text("उदा. लंगर राशन (चावल, मसाले, घी)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Category Selection
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("खर्च की श्रेणी (Category):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimaryGreen)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        expenseCategories.take(3).forEach { cat ->
+                            val isSel = category == cat
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSel) PrimaryGreen else SoftMintContainer)
+                                    .clickable { category = cat }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSel) Color.White else TextPrimaryGreen
+                                )
+                            }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it; errorMsg = null },
+                    label = { Text("खर्च राशि (₹ Amount) *") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    leadingIcon = { Text("₹", fontWeight = FontWeight.Bold, color = Color(0xFFDC2626), fontSize = 16.sp) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = spentBy,
+                    onValueChange = { spentBy = it },
+                    label = { Text("खर्चकर्ता / जिम्मेदार पदाधिकारी *") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = receiptRef,
+                    onValueChange = { receiptRef = it },
+                    label = { Text("बिल / वाउचर / रसीद संख्या (वैकल्पिक)") },
+                    placeholder = { Text("उदा. BILL/2026/089") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Bill / Voucher Attachment
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("बिल / पर्ची की फोटो संलग्न करें (Bill Photo):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimaryGreen)
+                    if (attachmentUri != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SoftMintContainer)
+                                .border(1.dp, EmeraldGreen, RoundedCornerShape(10.dp))
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Receipt, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("बिल / वाउचर फोटो संलग्न है ✓", fontSize = 12.sp, color = TextPrimaryGreen, fontWeight = FontWeight.Bold)
+                            }
+                            IconButton(onClick = { attachmentUri = null }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { photoPickerLauncher.launch("image/*") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("बिल / वाउचर की पर्ची जोड़ें", fontSize = 12.sp, color = PrimaryGreen)
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = remarks,
+                    onValueChange = { remarks = it },
+                    label = { Text("विशेष टिप्पणी (Remarks)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (errorMsg != null) {
+                    Text(text = errorMsg!!, color = Color.Red, fontSize = 12.sp)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val amt = amountText.toDoubleOrNull() ?: 0.0
+                            if (title.isBlank()) {
+                                errorMsg = "कृपया खर्च का नाम दर्ज करें"
+                                return@Button
+                            }
+                            if (amt <= 0) {
+                                errorMsg = "कृपया मान्य खर्च राशि दर्ज करें"
+                                return@Button
+                            }
+                            onConfirm(
+                                title,
+                                category,
+                                amt,
+                                spentBy,
+                                receiptRef.takeIf { it.isNotBlank() },
+                                attachmentUri,
+                                remarks.takeIf { it.isNotBlank() }
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                    ) {
+                        Text("खर्च दर्ज करें (Save)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- EDIT EXPENSE DIALOG ---
+@Composable
+fun EditExpenseDialog(
+    expense: Expense,
+    onDismiss: () -> Unit,
+    onConfirm: (updatedExpense: Expense) -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var title by remember { mutableStateOf(expense.title) }
+    var category by remember { mutableStateOf(expense.category) }
+    var amountText by remember { mutableStateOf(expense.amount.toInt().toString()) }
+    var spentBy by remember { mutableStateOf(expense.spentBy) }
+    var receiptRef by remember { mutableStateOf(expense.receiptRef ?: "") }
+    var remarks by remember { mutableStateOf(expense.remarks ?: "") }
+    var attachmentUri by remember { mutableStateOf(expense.attachmentUri) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri)
+                attachmentUri = base64 ?: uri.toString()
+            }
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "खर्च विवरण संशोधित करें",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = TextPrimaryGreen
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it; errorMsg = null },
+                    label = { Text("खर्च का नाम *") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it; errorMsg = null },
+                    label = { Text("राशि (₹ Amount) *") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    leadingIcon = { Text("₹", fontWeight = FontWeight.Bold, color = Color(0xFFDC2626)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = spentBy,
+                    onValueChange = { spentBy = it },
+                    label = { Text("खर्चकर्ता *") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = receiptRef,
+                    onValueChange = { receiptRef = it },
+                    label = { Text("बिल / वाउचर संख्या") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = remarks,
+                    onValueChange = { remarks = it },
+                    label = { Text("विशेष टिप्पणी") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (errorMsg != null) {
+                    Text(text = errorMsg!!, color = Color.Red, fontSize = 12.sp)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val amt = amountText.toDoubleOrNull() ?: 0.0
+                            if (title.isBlank() || amt <= 0) {
+                                errorMsg = "कृपया सभी आवश्यक विवरण सही भरें"
+                                return@Button
+                            }
+                            val updated = expense.copy(
+                                title = title.trim(),
+                                category = category.trim(),
+                                amount = amt,
+                                spentBy = spentBy.trim(),
+                                receiptRef = receiptRef.trim().ifEmpty { null },
+                                remarks = remarks.trim().ifEmpty { null },
+                                attachmentUri = attachmentUri
+                            )
+                            onConfirm(updated)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                    ) {
+                        Text("संशोधित करें (Update)", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

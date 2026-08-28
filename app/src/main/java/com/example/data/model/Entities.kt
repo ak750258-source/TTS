@@ -50,7 +50,9 @@ data class OfficialDocument(
     val fileSize: String,
     val accessLevel: String, // "All Members", "Executive Only", "Confidential"
     val summary: String,
-    val fullContent: String
+    val fullContent: String,
+    val attachmentUri: String? = null, // Document attachment (scanned PDF/image/base64)
+    val attachmentName: String? = null
 )
 
 @Entity(tableName = "notices")
@@ -76,7 +78,22 @@ data class Donation(
     val transactionRef: String,
     val date: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val verified: Boolean = true,
+    val verified: Boolean = true, // true = Approved & Published, false = Pending Admin Approval
+    val remarks: String? = null,
+    val paymentProofUri: String? = null // Attachment proof of UPI payment
+)
+
+@Entity(tableName = "expenses")
+data class Expense(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String, // खर्च का नाम / मद (e.g. लंगर राशन, साउंड व स्टेज, झंडे व तोरण, लाइट व्यवस्था)
+    val category: String, // "लंगर-ए-पाक", "स्टेज व साउंड", "डेकोरेशन व रोशनी", "जुलूस इंतजाम", "प्रशासनिक व विविध"
+    val amount: Double, // खर्च की राशि
+    val spentBy: String, // खर्चकर्ता / जिम्मेदार पदाधिकारी
+    val date: String, // खर्च की तारीख
+    val timestamp: Long = System.currentTimeMillis(),
+    val receiptRef: String? = null, // बिल / वाउचर संख्या
+    val attachmentUri: String? = null, // बिल / पर्ची की फोटो (Base64 / URI)
     val remarks: String? = null
 )
 

@@ -4,6 +4,7 @@ import com.example.data.firebase.FirebaseFirestoreService
 import com.example.data.local.TTSDao
 import com.example.data.model.ChatMessage
 import com.example.data.model.Donation
+import com.example.data.model.Expense
 import com.example.data.model.Meeting
 import com.example.data.model.Member
 import com.example.data.model.Notice
@@ -30,6 +31,18 @@ class TTSRepository(
 
     fun triggerCloudCatchup() {
         firestoreService.fetchCatchupEvents()
+    }
+
+    suspend fun syncAllMembersToCloud() {
+        val list = ttsDao.getAllMembersList()
+        list.forEach { member ->
+            firestoreService.syncMemberToCloud(member)
+        }
+    }
+
+    suspend fun triggerFullCloudSync() {
+        firestoreService.fetchCatchupEvents()
+        syncAllMembersToCloud()
     }
 
     init {
@@ -114,6 +127,22 @@ class TTSRepository(
             onDocDeleted = { docId ->
                 repositoryScope.launch {
                     ttsDao.deleteDocumentById(docId)
+                }
+            }
+        )
+
+        // Sync Expenses from Cloud
+        firestoreService.listenToExpenses(
+            onExpensesUpdated = { cloudExpenses ->
+                if (cloudExpenses.isNotEmpty()) {
+                    repositoryScope.launch {
+                        ttsDao.insertExpenses(cloudExpenses)
+                    }
+                }
+            },
+            onExpenseDeleted = { expenseId ->
+                repositoryScope.launch {
+                    ttsDao.deleteExpenseById(expenseId)
                 }
             }
         )
@@ -236,7 +265,10 @@ class TTSRepository(
 
     // Donations
     val allDonations: Flow<List<Donation>> = ttsDao.getAllDonations()
+    val approvedDonations: Flow<List<Donation>> = ttsDao.getApprovedDonations()
+    val pendingDonations: Flow<List<Donation>> = ttsDao.getPendingDonations()
     val totalDonationsSum: Flow<Double?> = ttsDao.getTotalDonationsSum()
+    val totalApprovedDonationsSum: Flow<Double?> = ttsDao.getTotalApprovedDonationsSum()
     
     suspend fun insertDonation(donation: Donation): Long {
         val id = ttsDao.insertDonation(donation)
@@ -252,6 +284,18 @@ class TTSRepository(
 
     suspend fun updateDonationVerification(id: Long, verified: Boolean) {
         ttsDao.updateDonationVerification(id, verified)
+        // Fetch and broadcast updated donation to all devices
+        allDonations.collect { list ->
+            list.find { it.id == id }?.let { updated ->
+                firestoreService.syncDonationToCloud(updated.copy(verified = verified))
+            }
+        }
+    }
+
+    suspend fun approveDonation(donation: Donation, isApproved: Boolean) {
+        val updated = donation.copy(verified = isApproved)
+        ttsDao.updateDonation(updated)
+        firestoreService.syncDonationToCloud(updated)
     }
 
     suspend fun deleteDonation(id: Long) {
@@ -262,6 +306,32 @@ class TTSRepository(
     suspend fun clearAllDonations() {
         ttsDao.clearAllDonations()
         firestoreService.clearAllDonationsFromCloud()
+    }
+
+    // Expenses (खर्च विवरण)
+    val allExpenses: Flow<List<Expense>> = ttsDao.getAllExpenses()
+    val totalExpensesSum: Flow<Double?> = ttsDao.getTotalExpensesSum()
+
+    suspend fun insertExpense(expense: Expense): Long {
+        val id = ttsDao.insertExpense(expense)
+        val saved = expense.copy(id = id)
+        firestoreService.syncExpenseToCloud(saved)
+        return id
+    }
+
+    suspend fun updateExpense(expense: Expense) {
+        ttsDao.updateExpense(expense)
+        firestoreService.syncExpenseToCloud(expense)
+    }
+
+    suspend fun deleteExpense(id: Long) {
+        ttsDao.deleteExpenseById(id)
+        firestoreService.deleteExpenseFromCloud(id)
+    }
+
+    suspend fun clearAllExpenses() {
+        ttsDao.clearAllExpenses()
+        firestoreService.clearAllExpensesFromCloud()
     }
 
     // Chat
@@ -307,6 +377,7 @@ class TTSRepository(
     suspend fun clearAllApplicationData() {
         ttsDao.clearAllChatMessages()
         ttsDao.clearAllDonations()
+        ttsDao.clearAllExpenses()
         ttsDao.clearAllNotices()
         ttsDao.clearAllMeetings()
         ttsDao.clearAllDocuments()

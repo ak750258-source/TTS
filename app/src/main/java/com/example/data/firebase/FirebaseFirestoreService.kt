@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.data.model.ChatMessage
 import com.example.data.model.Donation
+import com.example.data.model.Expense
 import com.example.data.model.Meeting
 import com.example.data.model.Member
 import com.example.data.model.Notice
@@ -52,7 +53,7 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     companion object {
         private const val TAG = "CloudSyncEngine"
-        private const val SYNC_TOPIC = "tts_12rabiulawwal_live_sync_v4"
+        private const val SYNC_TOPIC = "tts_12rabiulawwal_live_sync_v5"
         private const val BASE_URL = "https://ntfy.sh/$SYNC_TOPIC"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val DEVICE_ID = UUID.randomUUID().toString()
@@ -132,6 +133,9 @@ class FirebaseFirestoreService(context: Context? = null) {
     private val documentUpsertListeners = mutableListOf<(List<OfficialDocument>) -> Unit>()
     private val documentDeleteListeners = mutableListOf<(Long) -> Unit>()
 
+    private val expenseUpsertListeners = mutableListOf<(List<Expense>) -> Unit>()
+    private val expenseDeleteListeners = mutableListOf<(Long) -> Unit>()
+
     private val chatListeners = ConcurrentHashMap<String, MutableList<(List<ChatMessage>) -> Unit>>()
     private val clearAllListeners = mutableListOf<() -> Unit>()
 
@@ -171,13 +175,7 @@ class FirebaseFirestoreService(context: Context? = null) {
                             if (line.isBlank()) continue
 
                             try {
-                                val sseJson = JSONObject(line)
-                                if (sseJson.optString("event") == "message") {
-                                    val messageBody = sseJson.optString("message")
-                                    if (messageBody.isNotBlank()) {
-                                        handleCloudEvent(messageBody)
-                                    }
-                                }
+                                parseAndDispatchRawJsonLine(line)
                             } catch (e: Exception) {
                                 Log.v(TAG, "SSE line parse note: ${e.message}")
                             }
@@ -197,26 +195,23 @@ class FirebaseFirestoreService(context: Context? = null) {
     fun fetchCatchupEvents() {
         serviceScope.launch {
             try {
-                // Fetch events from the last 7 days so any newly installed device catches up on all data
-                val pollUrl = "$BASE_URL/json?poll=1&since=7d"
-                val request = Request.Builder().url(pollUrl).build()
-                httpClient.newCall(request).execute().use { response ->
-                    if (response.isSuccessful) {
-                        val body = response.body?.string() ?: ""
-                        val lines = body.split("\n")
-                        for (line in lines) {
-                            if (line.isBlank()) continue
-                            try {
-                                val sseJson = JSONObject(line)
-                                if (sseJson.optString("event") == "message") {
-                                    val messageBody = sseJson.optString("message")
-                                    if (messageBody.isNotBlank()) {
-                                        handleCloudEvent(messageBody)
-                                    }
+                // Fetch events from recent cache so any newly opened device catches up on all data
+                val pollUrls = listOf(
+                    "$BASE_URL/json?poll=1&since=all",
+                    "$BASE_URL/json?poll=1&since=7d"
+                )
+                for (pollUrl in pollUrls) {
+                    val request = Request.Builder().url(pollUrl).build()
+                    httpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            val lines = body.split("\n")
+                            for (line in lines) {
+                                if (line.isNotBlank()) {
+                                    parseAndDispatchRawJsonLine(line)
                                 }
-                            } catch (e: Exception) {
-                                // ignore
                             }
+                            return@launch
                         }
                     }
                 }
@@ -228,6 +223,31 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     private fun startCatchupPoll() {
         fetchCatchupEvents()
+    }
+
+    private fun parseAndDispatchRawJsonLine(line: String) {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() || !trimmed.startsWith("{")) return
+        try {
+            val sseJson = JSONObject(trimmed)
+            val event = sseJson.optString("event", "message")
+            if (event == "message" || event.isEmpty() || event == "poll") {
+                val messageBody = sseJson.optString("message", "").trim()
+                if (messageBody.startsWith("{")) {
+                    handleCloudEvent(messageBody)
+                } else if (sseJson.has("eventType")) {
+                    handleCloudEvent(trimmed)
+                }
+            } else if (sseJson.has("eventType")) {
+                handleCloudEvent(trimmed)
+            }
+        } catch (e: Exception) {
+            if (trimmed.startsWith("{") && trimmed.contains("eventType")) {
+                try {
+                    handleCloudEvent(trimmed)
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     // --- PERIODIC SYNC HEARTBEAT & CANDIDATE PRESENCE ---
@@ -259,8 +279,10 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     // --- EVENT DISPATCHER ---
     private fun handleCloudEvent(rawJson: String) {
+        val trimmed = rawJson.trim()
+        if (trimmed.isEmpty() || !trimmed.startsWith("{")) return
         try {
-            val root = JSONObject(rawJson)
+            val root = JSONObject(trimmed)
             val eventType = root.optString("eventType")
             val payload = root.optJSONObject("payload")
             val senderDeviceId = root.optString("senderDeviceId")
@@ -433,6 +455,24 @@ class FirebaseFirestoreService(context: Context? = null) {
                         }
                     }
                 }
+                "EXPENSE_UPSERT" -> {
+                    if (payload != null) {
+                        val expense = parseExpense(payload)
+                        if (expense != null) {
+                            synchronized(expenseUpsertListeners) {
+                                expenseUpsertListeners.forEach { it(listOf(expense)) }
+                            }
+                        }
+                    }
+                }
+                "EXPENSE_DELETE" -> {
+                    val id = payload?.optLong("id", 0L) ?: root.optLong("id", 0L)
+                    if (id > 0) {
+                        synchronized(expenseDeleteListeners) {
+                            expenseDeleteListeners.forEach { it(id) }
+                        }
+                    }
+                }
                 "PRESENCE_PING" -> {
                     val memberId = root.optLong("memberId", 0L)
                     val isOnline = root.optBoolean("isOnline", true)
@@ -476,16 +516,22 @@ class FirebaseFirestoreService(context: Context? = null) {
                     }
                 }
 
+                // 1. Standard ntfy JSON publishing format
+                val ntfyPayload = JSONObject().apply {
+                    put("topic", SYNC_TOPIC)
+                    put("title", "TTS_SYNC_$eventType")
+                    put("message", envelope.toString())
+                    put("priority", 4)
+                }
+
                 val request = Request.Builder()
-                    .url(BASE_URL)
-                    .header("Title", "TTS_SYNC_$eventType")
-                    .header("Priority", "high")
-                    .post(envelope.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .url("https://ntfy.sh")
+                    .post(ntfyPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
                     .build()
 
                 var success = false
                 var attempts = 0
-                while (!success && attempts < 2) {
+                while (!success && attempts < 3) {
                     attempts++
                     try {
                         httpClient.newCall(request).execute().use { response ->
@@ -493,17 +539,37 @@ class FirebaseFirestoreService(context: Context? = null) {
                                 success = true
                                 _isCloudConnected.value = true
                                 _syncStatus.value = "🟢 लाइव क्लाउड सिंक कनेक्टेड"
-                                Log.d(TAG, "Cloud broadcast success: $eventType")
+                                Log.d(TAG, "Cloud broadcast success: $eventType (attempt $attempts)")
                             } else {
-                                Log.w(TAG, "Cloud broadcast warning code: ${response.code}")
+                                Log.w(TAG, "Cloud broadcast warning code: ${response.code} for $eventType")
                             }
                         }
                     } catch (netEx: Exception) {
-                        if (attempts >= 2) {
-                            Log.w(TAG, "Cloud broadcast non-fatal note: ${netEx.message}")
+                        if (attempts >= 3) {
+                            Log.w(TAG, "Cloud broadcast retry note: ${netEx.message}")
                         } else {
-                            delay(500)
+                            delay(400)
                         }
+                    }
+                }
+
+                // 2. Direct plain text fallback to topic URL if needed
+                if (!success) {
+                    try {
+                        val fallbackRequest = Request.Builder()
+                            .url(BASE_URL)
+                            .header("Title", "TTS_SYNC_$eventType")
+                            .header("Priority", "high")
+                            .post(envelope.toString().toRequestBody("text/plain; charset=utf-8".toMediaType()))
+                            .build()
+                        httpClient.newCall(fallbackRequest).execute().use { resp ->
+                            if (resp.isSuccessful) {
+                                _isCloudConnected.value = true
+                                Log.d(TAG, "Fallback plain text broadcast succeeded for $eventType")
+                            }
+                        }
+                    } catch (fbEx: Exception) {
+                        Log.w(TAG, "Fallback broadcast note: ${fbEx.message}")
                     }
                 }
             } catch (e: Exception) {
@@ -578,6 +644,15 @@ class FirebaseFirestoreService(context: Context? = null) {
         return null
     }
 
+    fun listenToExpenses(
+        onExpensesUpdated: (List<Expense>) -> Unit,
+        onExpenseDeleted: (Long) -> Unit = {}
+    ): ListenerRegistration? {
+        synchronized(expenseUpsertListeners) { expenseUpsertListeners.add(onExpensesUpdated) }
+        synchronized(expenseDeleteListeners) { expenseDeleteListeners.add(onExpenseDeleted) }
+        return null
+    }
+
     fun listenToChat(channelId: String, onChatUpdated: (List<ChatMessage>) -> Unit): ListenerRegistration? {
         val list = chatListeners.getOrPut(channelId) { mutableListOf() }
         synchronized(list) {
@@ -641,6 +716,7 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("timestamp", donation.timestamp)
                 put("verified", donation.verified)
                 put("remarks", donation.remarks ?: "")
+                put("paymentProofUri", donation.paymentProofUri ?: "")
             }
             broadcastEvent("DONATION_UPSERT", json)
         }
@@ -721,6 +797,8 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("accessLevel", doc.accessLevel)
                 put("summary", doc.summary)
                 put("fullContent", doc.fullContent)
+                put("attachmentUri", doc.attachmentUri ?: "")
+                put("attachmentName", doc.attachmentName ?: "")
             }
             broadcastEvent("DOCUMENT_UPSERT", json)
         }
@@ -733,6 +811,37 @@ class FirebaseFirestoreService(context: Context? = null) {
             }
             broadcastEvent("DOCUMENT_DELETE", json)
         }
+    }
+
+    suspend fun syncExpenseToCloud(expense: Expense) {
+        withContext(Dispatchers.IO) {
+            val json = JSONObject().apply {
+                put("id", expense.id)
+                put("title", expense.title)
+                put("category", expense.category)
+                put("amount", expense.amount)
+                put("spentBy", expense.spentBy)
+                put("date", expense.date)
+                put("timestamp", expense.timestamp)
+                put("receiptRef", expense.receiptRef ?: "")
+                put("attachmentUri", expense.attachmentUri ?: "")
+                put("remarks", expense.remarks ?: "")
+            }
+            broadcastEvent("EXPENSE_UPSERT", json)
+        }
+    }
+
+    suspend fun deleteExpenseFromCloud(id: Long) {
+        withContext(Dispatchers.IO) {
+            val json = JSONObject().apply {
+                put("id", id)
+            }
+            broadcastEvent("EXPENSE_DELETE", json)
+        }
+    }
+
+    suspend fun clearAllExpensesFromCloud() {
+        broadcastEvent("CLEAR_EXPENSES", null)
     }
 
     suspend fun syncChatMessageToCloud(message: ChatMessage) {
@@ -805,12 +914,14 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     private fun parseMember(obj: JSONObject): Member? {
         return try {
-            val id = obj.optLong("id", 0L)
-            if (id <= 0) return null
+            val fullName = obj.optString("fullName", "").trim()
+            if (fullName.isBlank()) return null
+            val id = obj.optLong("id", 0L).let { if (it > 0) it else System.currentTimeMillis() }
+            val memberCode = obj.optString("memberCode", "").ifBlank { "TTS-$id" }
             Member(
                 id = id,
-                memberCode = obj.optString("memberCode", "TTS-$id"),
-                fullName = obj.optString("fullName", ""),
+                memberCode = memberCode,
+                fullName = fullName,
                 designation = obj.optString("designation", "खादिम (Volunteer)"),
                 committeeWing = obj.optString("committeeWing", "12 रबी-उल-अव्वल जुलूस कमेटी"),
                 phoneNumber = obj.optString("phoneNumber", ""),
@@ -827,6 +938,7 @@ class FirebaseFirestoreService(context: Context? = null) {
                 photoUri = obj.optString("photoUri").takeIf { it.isNotBlank() }
             )
         } catch (e: Exception) {
+            Log.e(TAG, "parseMember exception: ${e.message}", e)
             null
         }
     }
@@ -888,7 +1000,8 @@ class FirebaseFirestoreService(context: Context? = null) {
                 date = obj.optString("date", ""),
                 timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
                 verified = obj.optBoolean("verified", true),
-                remarks = obj.optString("remarks").takeIf { it.isNotBlank() }
+                remarks = obj.optString("remarks").takeIf { it.isNotBlank() },
+                paymentProofUri = obj.optString("paymentProofUri").takeIf { it.isNotBlank() }
             )
         } catch (e: Exception) {
             null
@@ -908,7 +1021,30 @@ class FirebaseFirestoreService(context: Context? = null) {
                 fileSize = obj.optString("fileSize", "1.2 MB"),
                 accessLevel = obj.optString("accessLevel", "All Members"),
                 summary = obj.optString("summary", ""),
-                fullContent = obj.optString("fullContent", "")
+                fullContent = obj.optString("fullContent", ""),
+                attachmentUri = obj.optString("attachmentUri").takeIf { it.isNotBlank() },
+                attachmentName = obj.optString("attachmentName").takeIf { it.isNotBlank() }
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun parseExpense(obj: JSONObject): Expense? {
+        return try {
+            val id = obj.optLong("id", 0L)
+            if (id <= 0) return null
+            Expense(
+                id = id,
+                title = obj.optString("title", "खर्च प्रविष्टि"),
+                category = obj.optString("category", "लंगर-ए-पाक"),
+                amount = obj.optDouble("amount", 0.0),
+                spentBy = obj.optString("spentBy", "कमेटी व्यवस्थापक"),
+                date = obj.optString("date", ""),
+                timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                receiptRef = obj.optString("receiptRef").takeIf { it.isNotBlank() },
+                attachmentUri = obj.optString("attachmentUri").takeIf { it.isNotBlank() },
+                remarks = obj.optString("remarks").takeIf { it.isNotBlank() }
             )
         } catch (e: Exception) {
             null

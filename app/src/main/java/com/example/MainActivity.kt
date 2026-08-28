@@ -256,7 +256,8 @@ fun TTSMainApp(
                         },
                         onDeleteMember = { memberId, name ->
                             viewModel.deleteMember(memberId, name)
-                        }
+                        },
+                        onTriggerSync = { viewModel.triggerCloudSync() }
                     )
                 }
 
@@ -474,7 +475,7 @@ fun TTSMainApp(
     if (showAddDonationDialog) {
         AddDonationRecordDialog(
             onDismiss = { showAddDonationDialog = false },
-            onConfirm = { donor, code, amt, purpose, mode, ref, rem ->
+            onConfirm = { donor, code, amt, purpose, mode, ref, rem, proof ->
                 viewModel.addDonation(
                     donorName = donor,
                     donorMemberCode = code,
@@ -482,7 +483,9 @@ fun TTSMainApp(
                     purpose = purpose,
                     paymentMode = mode,
                     transactionRef = ref,
-                    remarks = rem
+                    remarks = rem,
+                    isApproved = true,
+                    paymentProofUri = proof
                 )
                 showAddDonationDialog = false
             }
@@ -493,13 +496,15 @@ fun TTSMainApp(
     if (showAddDocumentDialog) {
         AddDocumentDialog(
             onDismiss = { showAddDocumentDialog = false },
-            onConfirm = { title, category, accessLevel, summary, fullContent ->
+            onConfirm = { title, category, accessLevel, summary, fullContent, attachmentUri, attachmentName ->
                 viewModel.addDocument(
                     title = title,
                     category = category,
                     accessLevel = accessLevel,
                     summary = summary,
-                    fullContent = fullContent
+                    fullContent = fullContent,
+                    attachmentUri = attachmentUri,
+                    attachmentName = attachmentName
                 )
                 showAddDocumentDialog = false
             }

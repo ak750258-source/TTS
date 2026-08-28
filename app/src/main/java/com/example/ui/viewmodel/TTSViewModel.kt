@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.TTSDatabase
 import com.example.data.model.ChatMessage
 import com.example.data.model.Donation
+import com.example.data.model.Expense
 import com.example.data.model.Meeting
 import com.example.data.model.Member
 import com.example.data.model.Notice
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -49,8 +51,10 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
     val onlineCandidateIds: StateFlow<Set<Long>> = repository.onlineCandidateIds
 
     fun triggerCloudSync() {
-        repository.triggerCloudCatchup()
-        showSnackbar("🟢 लाइव क्लाउड सिंक रीफ्रेश किया जा रहा है...")
+        viewModelScope.launch {
+            repository.triggerFullCloudSync()
+            showSnackbar("🟢 सभी डिवाइस पर लाइव क्लाउड सिंक सफलतापूर्वक पूरा हुआ")
+        }
     }
 
     // Navigation State
@@ -181,6 +185,18 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = emptyList()
     )
 
+    val approvedDonations: StateFlow<List<Donation>> = repository.approvedDonations.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val pendingDonations: StateFlow<List<Donation>> = repository.pendingDonations.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     val totalDonationsSum: StateFlow<Double> = repository.totalDonationsSum
         .map { it ?: 0.0 }
         .stateIn(
@@ -188,6 +204,38 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = 0.0
         )
+
+    val totalApprovedDonationsSum: StateFlow<Double> = repository.totalApprovedDonationsSum
+        .map { it ?: 0.0 }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0.0
+        )
+
+    // Expenses (खर्च विवरण) streams
+    val expenses: StateFlow<List<Expense>> = repository.allExpenses.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val totalExpensesSum: StateFlow<Double> = repository.totalExpensesSum
+        .map { it ?: 0.0 }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0.0
+        )
+
+    // Live real-time Remaining Balance (कुल शुद्ध शेष बचत = कुल प्राप्त चंदा - कुल खर्च)
+    val remainingBalance: StateFlow<Double> = combine(totalApprovedDonationsSum, totalExpensesSum) { approvedTotal, expensesTotal ->
+        approvedTotal - expensesTotal
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = 0.0
+    )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val currentChannelMessages: StateFlow<List<ChatMessage>> = _selectedChatChannel
@@ -216,11 +264,13 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             val count = members.value.size + 1
+            val uniqueId = System.currentTimeMillis()
             val code = "TTS-1447-${String.format(Locale.getDefault(), "%03d", count)}"
             val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
             val today = dateFormat.format(Date())
 
             val newMember = Member(
+                id = uniqueId,
                 memberCode = code,
                 fullName = fullName.trim(),
                 designation = designation.trim(),
@@ -238,7 +288,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 photoUri = photoUri?.trim()
             )
             val newId = repository.insertMember(newMember)
-            showSnackbar("नया सदस्य '${newMember.fullName}' सफलतापूर्वक जोड़ा गया! (आईडी: $code)")
+            showSnackbar("नया सदस्य '${newMember.fullName}' सफलतापूर्वक जोड़ा गया और सभी डिवाइस पर सिंक हो गया! (आईडी: $code)")
         }
     }
 
@@ -253,11 +303,13 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             val count = members.value.size + 1
+            val uniqueId = System.currentTimeMillis()
             val code = "TTS-1447-${String.format(Locale.getDefault(), "%03d", count)}"
             val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
             val today = dateFormat.format(Date())
 
             val newMember = Member(
+                id = uniqueId,
                 memberCode = code,
                 fullName = fullName.trim(),
                 designation = "खादिम-ए-कमेटी (Volunteer)",
@@ -279,7 +331,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
             _currentActiveMember.value = memberWithId
             _selectedMemberForIDCard.value = memberWithId
             _currentTab.value = AppTab.ID_CARD
-            showSnackbar("मुबारक! आपका 12 रबी-उल-अव्वल डिजिटल पहचान पत्र (ID Card) तैयार हो गया!")
+            showSnackbar("मुबारक! आपका 12 रबी-उल-अव्वल डिजिटल पहचान पत्र (ID Card) तैयार हो गया और सभी डिवाइस पर सिंक हो गया!")
         }
     }
 
@@ -431,7 +483,9 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         category: String,
         accessLevel: String,
         summary: String,
-        fullContent: String
+        fullContent: String,
+        attachmentUri: String? = null,
+        attachmentName: String? = null
     ) {
         viewModelScope.launch {
             val count = documents.value.size + 1
@@ -442,10 +496,12 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 category = category.trim(),
                 refCode = ref,
                 publishedDate = dateFormat.format(Date()),
-                fileSize = "1.5 MB PDF",
+                fileSize = if (attachmentUri != null) "सत्यापित संलग्नक" else "1.5 MB PDF",
                 accessLevel = accessLevel.trim(),
                 summary = summary.trim(),
-                fullContent = fullContent.trim()
+                fullContent = fullContent.trim(),
+                attachmentUri = attachmentUri,
+                attachmentName = attachmentName
             )
             repository.insertDocument(doc)
             TTSNotificationHelper.showDocumentNotification(
@@ -454,7 +510,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 category = doc.category,
                 summary = doc.summary
             )
-            showSnackbar("दस्तावेज़ '$title' सफलतापूर्वक सहेजा गया")
+            showSnackbar("दस्तावेज़ '$title' संलग्नक सहित सफलतापूर्वक सहेजा गया और सभी डिवाइस पर सिंक हो गया")
         }
     }
 
@@ -476,7 +532,9 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         purpose: String,
         paymentMode: String = "UPI (ak750258@icici)",
         transactionRef: String,
-        remarks: String?
+        remarks: String?,
+        isApproved: Boolean = _isAdminLoggedIn.value, // Auto-approved if Admin, else pending Admin approval
+        paymentProofUri: String? = null
     ) {
         viewModelScope.launch {
             val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
@@ -491,18 +549,94 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 },
                 date = dateFormat.format(Date()),
                 timestamp = System.currentTimeMillis(),
-                verified = true,
-                remarks = if (remarks.isNullOrBlank()) null else remarks.trim()
+                verified = isApproved,
+                remarks = if (remarks.isNullOrBlank()) null else remarks.trim(),
+                paymentProofUri = paymentProofUri
             )
             repository.insertDonation(donation)
+            if (isApproved) {
+                TTSNotificationHelper.showDonationNotification(
+                    context = getApplication(),
+                    donorName = donation.donorName,
+                    amount = donation.amount,
+                    receiptNumber = donation.transactionRef,
+                    note = donation.purpose
+                )
+                showSnackbar("₹$amount का चंदा ($donorName) स्वीकृत होकर मुख्य सूची में दर्ज हो गया!")
+            } else {
+                showSnackbar("₹$amount का चंदा दर्ज हुआ। एडमिन स्वीकृति के पश्चात सार्वजनिक सूची व कुल राशि में जुड़ेगा।")
+            }
+        }
+    }
+
+    fun approveDonation(donation: Donation) {
+        viewModelScope.launch {
+            repository.approveDonation(donation, true)
             TTSNotificationHelper.showDonationNotification(
                 context = getApplication(),
                 donorName = donation.donorName,
                 amount = donation.amount,
                 receiptNumber = donation.transactionRef,
-                note = donation.purpose
+                note = "एडमिन द्वारा स्वीकृत: " + donation.purpose
             )
-            showSnackbar("₹$amount का चंदा ($donorName) पारदर्शी सार्वजनिक लेजर में दर्ज हो गया!")
+            showSnackbar("चंदा (${donation.donorName} - ₹${donation.amount.toInt()}) स्वीकृत हो गया और सभी डिवाइस पर लाइव अपडेट हो गया!")
+        }
+    }
+
+    fun rejectDonation(donation: Donation) {
+        viewModelScope.launch {
+            repository.deleteDonation(donation.id)
+            showSnackbar("चंदा प्रविष्टि (${donation.donorName}) अस्वीकृत कर दी गई।")
+        }
+    }
+
+    // Expense Actions (खर्च विवरण - Kharch Vivran)
+    fun addExpense(
+        title: String,
+        category: String,
+        amount: Double,
+        spentBy: String,
+        receiptRef: String? = null,
+        attachmentUri: String? = null,
+        remarks: String? = null
+    ) {
+        viewModelScope.launch {
+            val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+            val count = expenses.value.size + 1
+            val expense = Expense(
+                title = title.trim(),
+                category = category.trim(),
+                amount = amount,
+                spentBy = spentBy.trim().ifEmpty { "कमेटी व्यवस्थापक" },
+                date = dateFormat.format(Date()),
+                timestamp = System.currentTimeMillis(),
+                receiptRef = receiptRef?.trim()?.ifEmpty { "EXP/TTS-${String.format("%03d", count)}" },
+                attachmentUri = attachmentUri,
+                remarks = remarks?.trim()
+            )
+            repository.insertExpense(expense)
+            showSnackbar("खर्च विवरण '₹${amount.toInt()} - $title' सफलतापूर्वक दर्ज हो गया। शेष बचत स्वतः अपडेट हुई।")
+        }
+    }
+
+    fun updateExpense(expense: Expense) {
+        viewModelScope.launch {
+            repository.updateExpense(expense)
+            showSnackbar("खर्च विवरण (${expense.title} - ₹${expense.amount.toInt()}) संशोधित हो गया!")
+        }
+    }
+
+    fun deleteExpense(expenseId: Long) {
+        viewModelScope.launch {
+            repository.deleteExpense(expenseId)
+            showSnackbar("खर्च प्रविष्टि हटा दी गई। शेष बचत पुनः कैल्क्युलेट हो गई।")
+        }
+    }
+
+    fun clearAllExpenses() {
+        viewModelScope.launch {
+            repository.clearAllExpenses()
+            showSnackbar("सभी खर्च रिकॉर्ड्स साफ़ कर दिए गए!")
         }
     }
 

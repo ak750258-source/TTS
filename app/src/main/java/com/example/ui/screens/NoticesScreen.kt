@@ -388,7 +388,20 @@ fun NoticesScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text("जारी: ${doc.publishedDate}", fontSize = 10.sp, color = TextSecondaryGreen)
-                                    Text("दस्तावेज़ खोलें →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (!doc.attachmentUri.isNullOrBlank()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(SoftMintContainer)
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text("📎 संलग्नक", fontSize = 10.sp, color = EmeraldGreen, fontWeight = FontWeight.Bold)
+                                            }
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                        }
+                                        Text("दस्तावेज़ खोलें →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+                                    }
                                 }
                             }
                         }
