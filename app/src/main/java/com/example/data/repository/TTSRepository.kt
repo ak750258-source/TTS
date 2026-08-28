@@ -334,11 +334,9 @@ class TTSRepository(
 
     suspend fun updateDonationVerification(id: Long, verified: Boolean) {
         ttsDao.updateDonationVerification(id, verified)
-        // Fetch and broadcast updated donation to all devices
-        allDonations.collect { list ->
-            list.find { it.id == id }?.let { updated ->
-                firestoreService.syncDonationToCloud(updated.copy(verified = verified))
-            }
+        val donations = ttsDao.getAllDonationsList()
+        donations.find { it.id == id }?.let { updated ->
+            firestoreService.syncDonationToCloud(updated.copy(verified = verified))
         }
     }
 

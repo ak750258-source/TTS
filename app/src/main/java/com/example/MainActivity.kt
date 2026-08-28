@@ -145,8 +145,9 @@ fun TTSMainApp(
     val meetings by viewModel.meetings.collectAsState()
     val notices by viewModel.notices.collectAsState()
     val documents by viewModel.documents.collectAsState()
-    val donations by viewModel.donations.collectAsState()
-    val totalDonations by viewModel.totalDonationsSum.collectAsState()
+    val approvedDonations by viewModel.approvedDonations.collectAsState()
+    val pendingDonations by viewModel.pendingDonations.collectAsState()
+    val totalApprovedDonations by viewModel.totalApprovedDonationsSum.collectAsState()
     val chatMessages by viewModel.currentChannelMessages.collectAsState()
     val selectedChannel by viewModel.selectedChatChannel.collectAsState()
     val previewIDCardMember by viewModel.selectedMemberForIDCard.collectAsState()
@@ -234,8 +235,8 @@ fun TTSMainApp(
                         meetings = meetings,
                         notices = notices,
                         documents = documents,
-                        donations = donations,
-                        totalDonations = totalDonations,
+                        donations = approvedDonations,
+                        totalDonations = totalApprovedDonations ?: 0.0,
                         activeMember = activeMember,
                         isAdminLoggedIn = isAdminLoggedIn,
                         onlineCandidateIds = onlineCandidateIds,
@@ -337,11 +338,14 @@ fun TTSMainApp(
 
                 AppTab.DONATIONS -> {
                     DonationScreen(
-                        donations = donations,
-                        totalDonations = totalDonations,
+                        approvedDonations = approvedDonations,
+                        pendingDonations = pendingDonations,
+                        totalDonations = totalApprovedDonations ?: 0.0,
                         isAdminLoggedIn = isAdminLoggedIn,
                         onOpenAdminLogin = { showAdminLoginDialog = true },
                         onOpenAddDonationModal = { showAddDonationDialog = true },
+                        onApproveDonation = { donation -> viewModel.approveDonation(donation) },
+                        onRejectDonation = { donation -> viewModel.rejectDonation(donation) },
                         onVerifyDonation = { id, verified -> viewModel.updateDonationVerification(id, verified) },
                         onEditDonation = { donationForEdit = it },
                         onDeleteDonation = { id -> viewModel.deleteDonation(id) },
@@ -501,6 +505,7 @@ fun TTSMainApp(
     // Add Donation Record Dialog
     if (showAddDonationDialog) {
         AddDonationRecordDialog(
+            isAdmin = isAdminLoggedIn,
             onDismiss = { showAddDonationDialog = false },
             onConfirm = { donor, code, amt, purpose, mode, ref, rem, proof ->
                 viewModel.addDonation(
@@ -511,7 +516,7 @@ fun TTSMainApp(
                     paymentMode = mode,
                     transactionRef = ref,
                     remarks = rem,
-                    isApproved = true,
+                    isApproved = isAdminLoggedIn,
                     paymentProofUri = proof
                 )
                 showAddDonationDialog = false

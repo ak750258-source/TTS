@@ -9,6 +9,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -1357,6 +1359,7 @@ fun AddNoticeDialog(
 // --- RECORD DONATION DIALOG IN HINDI (UPI ak750258@icici) ---
 @Composable
 fun AddDonationRecordDialog(
+    isAdmin: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (donorName: String, memberCode: String?, amount: Double, purpose: String, paymentMode: String, transactionRef: String, remarks: String?, paymentProofUri: String?) -> Unit
 ) {
@@ -1414,9 +1417,9 @@ fun AddDonationRecordDialog(
                 ) {
                     Column {
                         Text(
-                            text = "चंदा / दान दर्ज करें",
+                            text = if (isAdmin) "चंदा दर्ज करें (Admin Entry)" else "सहयोग चंदा प्रविष्टि (Member Entry)",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
+                            fontSize = 17.sp,
                             color = TextPrimaryGreen
                         )
                         Text(
@@ -1427,6 +1430,32 @@ fun AddDonationRecordDialog(
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                // Mode notice banner
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isAdmin) SoftMintContainer else Color(0xFFFEF3C7))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (isAdmin) "👑" else "⏳",
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isAdmin)
+                                "एडमिन मोड: यह प्रविष्टि सीधे स्वीकृत (Approved) होकर मुख्य सूची में दर्ज होगी।"
+                            else
+                                "सदस्य प्रविष्टि: यह चंदा व्यवस्थापक (Admin) की स्वीकृति के बाद ही सार्वजनिक सूची व कुल योग में जुड़ेगा।",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isAdmin) PineGreenDark else Color(0xFF92400E)
+                        )
                     }
                 }
 
@@ -1452,6 +1481,33 @@ fun AddDonationRecordDialog(
                     leadingIcon = { Text("₹", fontWeight = FontWeight.Bold, color = EmeraldGreen) },
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                // Quick purpose selection
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("मद / उद्देश्य चुनें:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimaryGreen)
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(purposeOptions) { opt ->
+                            val isSel = purpose == opt
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSel) PrimaryGreen else SoftMintContainer)
+                                    .clickable { purpose = opt }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = opt,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isSel) Color.White else TextPrimaryGreen
+                                )
+                            }
+                        }
+                    }
+                }
 
                 OutlinedTextField(
                     value = purpose,
@@ -1535,7 +1591,11 @@ fun AddDonationRecordDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
-                        Text("लेजर में जोड़ें (Save)", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (isAdmin) "स्वीकृत कर जोड़ें (Save)" else "स्वीकृति हेतु भेजें (Submit)",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
