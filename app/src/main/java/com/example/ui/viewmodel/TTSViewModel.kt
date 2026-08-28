@@ -248,6 +248,14 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyList()
         )
 
+    val onlineMembers: StateFlow<List<Member>> = combine(members, onlineCandidateIds) { allMems, onlineIds ->
+        allMems.filter { onlineIds.contains(it.id) }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     // Member Actions
     fun addMember(
         fullName: String,
@@ -264,8 +272,8 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             val count = members.value.size + 1
-            val uniqueId = System.currentTimeMillis()
-            val code = "TTS-1447-${String.format(Locale.getDefault(), "%03d", count)}"
+            val uniqueId = System.currentTimeMillis() + (1..999).random().toLong()
+            val code = "TTS-1447-${String.format(Locale.getDefault(), "%03d", (uniqueId % 1000).toInt())}"
             val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
             val today = dateFormat.format(Date())
 
@@ -288,6 +296,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 photoUri = photoUri?.trim()
             )
             val newId = repository.insertMember(newMember)
+            repository.updateCandidatePresence(newMember.id, newMember.fullName, true)
             showSnackbar("नया सदस्य '${newMember.fullName}' सफलतापूर्वक जोड़ा गया और सभी डिवाइस पर सिंक हो गया! (आईडी: $code)")
         }
     }
@@ -303,8 +312,8 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             val count = members.value.size + 1
-            val uniqueId = System.currentTimeMillis()
-            val code = "TTS-1447-${String.format(Locale.getDefault(), "%03d", count)}"
+            val uniqueId = System.currentTimeMillis() + (1..999).random().toLong()
+            val code = "TTS-1447-${String.format(Locale.getDefault(), "%03d", (uniqueId % 1000).toInt())}"
             val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
             val today = dateFormat.format(Date())
 
@@ -331,6 +340,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
             _currentActiveMember.value = memberWithId
             _selectedMemberForIDCard.value = memberWithId
             _currentTab.value = AppTab.ID_CARD
+            repository.updateCandidatePresence(memberWithId.id, memberWithId.fullName, true)
             showSnackbar("मुबारक! आपका 12 रबी-उल-अव्वल डिजिटल पहचान पत्र (ID Card) तैयार हो गया और सभी डिवाइस पर सिंक हो गया!")
         }
     }
@@ -679,6 +689,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
 
             val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
             val chatMsg = ChatMessage(
+                id = System.currentTimeMillis() + (1..999).random().toLong(),
                 channelId = _selectedChatChannel.value,
                 senderName = senderName,
                 senderRole = senderRole,
@@ -689,6 +700,13 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 isAnnouncement = _isAdminLoggedIn.value
             )
             repository.sendChatMessage(chatMsg)
+        }
+    }
+
+    fun deleteChatMessage(messageId: Long, channelId: String = _selectedChatChannel.value) {
+        viewModelScope.launch {
+            repository.deleteChatMessage(messageId, channelId)
+            showSnackbar("संदेश सभी डिवाइस से सफलतापूर्वक हटा दिया गया")
         }
     }
 

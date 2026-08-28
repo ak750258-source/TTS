@@ -61,6 +61,9 @@ interface TTSDao {
     @Query("SELECT * FROM meetings ORDER BY dateTimeMillis ASC")
     fun getAllMeetings(): Flow<List<Meeting>>
 
+    @Query("SELECT * FROM meetings ORDER BY dateTimeMillis ASC")
+    suspend fun getAllMeetingsList(): List<Meeting>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMeeting(meeting: Meeting): Long
 
@@ -76,6 +79,9 @@ interface TTSDao {
     // --- DOCUMENTS ---
     @Query("SELECT * FROM documents ORDER BY id DESC")
     fun getAllDocuments(): Flow<List<OfficialDocument>>
+
+    @Query("SELECT * FROM documents ORDER BY id DESC")
+    suspend fun getAllDocumentsList(): List<OfficialDocument>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDocument(doc: OfficialDocument): Long
@@ -93,6 +99,9 @@ interface TTSDao {
     @Query("SELECT * FROM notices ORDER BY isPinned DESC, id DESC")
     fun getAllNotices(): Flow<List<Notice>>
 
+    @Query("SELECT * FROM notices ORDER BY isPinned DESC, id DESC")
+    suspend fun getAllNoticesList(): List<Notice>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNotice(notice: Notice): Long
 
@@ -108,6 +117,9 @@ interface TTSDao {
     // --- DONATIONS ---
     @Query("SELECT * FROM donations ORDER BY timestamp DESC")
     fun getAllDonations(): Flow<List<Donation>>
+
+    @Query("SELECT * FROM donations ORDER BY timestamp DESC")
+    suspend fun getAllDonationsList(): List<Donation>
 
     @Query("SELECT * FROM donations WHERE verified = 1 ORDER BY timestamp DESC")
     fun getApprovedDonations(): Flow<List<Donation>>
@@ -142,6 +154,9 @@ interface TTSDao {
     // --- EXPENSES (खर्च विवरण) ---
     @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
     fun getAllExpenses(): Flow<List<Expense>>
+
+    @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
+    suspend fun getAllExpensesList(): List<Expense>
 
     @Query("SELECT SUM(amount) FROM expenses")
     fun getTotalExpensesSum(): Flow<Double?>

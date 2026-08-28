@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -169,6 +170,31 @@ fun TTSMainApp(
     var memberForPhotoUpdate by remember { mutableStateOf<Member?>(null) }
     var viewedDocument by remember { mutableStateOf<OfficialDocument?>(null) }
 
+    val anyDialogVisible = showAdminLoginDialog || showProfileSwitcher || showAddMemberDialog ||
+            showSelfRegisterDialog || showAddMeetingDialog || showAddNoticeDialog ||
+            showAddDonationDialog || showAddDocumentDialog || donationForEdit != null ||
+            memberForDesignation != null || memberForBestPerformer != null ||
+            memberForPhotoUpdate != null || viewedDocument != null
+
+    BackHandler(enabled = anyDialogVisible || currentTab != AppTab.HOME) {
+        when {
+            showAdminLoginDialog -> showAdminLoginDialog = false
+            showProfileSwitcher -> showProfileSwitcher = false
+            showAddMemberDialog -> showAddMemberDialog = false
+            showSelfRegisterDialog -> showSelfRegisterDialog = false
+            showAddMeetingDialog -> showAddMeetingDialog = false
+            showAddNoticeDialog -> showAddNoticeDialog = false
+            showAddDonationDialog -> showAddDonationDialog = false
+            showAddDocumentDialog -> showAddDocumentDialog = false
+            donationForEdit != null -> donationForEdit = null
+            memberForDesignation != null -> memberForDesignation = null
+            memberForBestPerformer != null -> memberForBestPerformer = null
+            memberForPhotoUpdate != null -> memberForPhotoUpdate = null
+            viewedDocument != null -> viewedDocument = null
+            currentTab != AppTab.HOME -> viewModel.setTab(AppTab.HOME)
+        }
+    }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -284,6 +310,7 @@ fun TTSMainApp(
                         onlineCandidateIds = onlineCandidateIds,
                         onSelectChannel = { viewModel.selectChatChannel(it) },
                         onSendMessage = { msg -> viewModel.sendChatMessage(msg) },
+                        onDeleteChatMessage = { id, channel -> viewModel.deleteChatMessage(id, channel) },
                         onOpenAddMeeting = { showAddMeetingDialog = true },
                         onOpenAdminLogin = { showAdminLoginDialog = true },
                         onDeleteMeeting = { id -> viewModel.deleteMeeting(id) },

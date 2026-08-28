@@ -92,6 +92,10 @@ import com.example.ui.theme.SoftMintContainer
 import com.example.ui.theme.TextPrimaryGreen
 import com.example.ui.theme.TextSecondaryGreen
 
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material3.AlertDialog
+
 @Composable
 fun MeetingsScreen(
     meetings: List<Meeting>,
@@ -103,6 +107,7 @@ fun MeetingsScreen(
     onlineCandidateIds: Set<Long> = emptySet(),
     onSelectChannel: (String) -> Unit,
     onSendMessage: (String) -> Unit,
+    onDeleteChatMessage: (Long, String) -> Unit = { _, _ -> },
     onOpenAddMeeting: () -> Unit,
     onOpenAdminLogin: () -> Unit,
     onDeleteMeeting: (Long) -> Unit,
@@ -151,6 +156,7 @@ fun MeetingsScreen(
                 onlineCandidateIds = onlineCandidateIds,
                 onSelectChannel = onSelectChannel,
                 onSendMessage = onSendMessage,
+                onDeleteChatMessage = onDeleteChatMessage,
                 onOpenProfileSwitcher = onOpenProfileSwitcher,
                 onClearChat = onClearChat
             )
@@ -177,11 +183,18 @@ fun LiveChatSection(
     onlineCandidateIds: Set<Long> = emptySet(),
     onSelectChannel: (String) -> Unit,
     onSendMessage: (String) -> Unit,
+    onDeleteChatMessage: (Long, String) -> Unit = { _, _ -> },
     onOpenProfileSwitcher: () -> Unit,
     onClearChat: () -> Unit = {}
 ) {
     var inputText by remember { mutableStateOf("") }
+    var messageToDelete by remember { mutableStateOf<ChatMessage?>(null) }
     val listState = rememberLazyListState()
+
+    val onlineMemberList = remember(allMembers, onlineCandidateIds) {
+        val list = allMembers.filter { onlineCandidateIds.contains(it.id) }
+        if (list.isEmpty() && activeMember != null) listOf(activeMember) else list
+    }
 
     val channels = listOf(
         Pair("general", "आम चर्चा (General)"),
@@ -202,6 +215,43 @@ fun LiveChatSection(
         if (chatMessages.isNotEmpty()) {
             listState.animateScrollToItem(chatMessages.size - 1)
         }
+    }
+
+    // Delete message confirmation dialog
+    messageToDelete?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { messageToDelete = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(22.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("संदेश हटाएं (Delete for Everyone)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Text(
+                    text = "क्या आप '${msg.senderName}' का यह संदेश सभी डिवाइस से हटाना चाहते हैं?\n\n'${msg.messageText}'\n\nयह सभी सदस्यों के फोन से रियल-टाइम में हट जाएगा।",
+                    fontSize = 13.sp,
+                    color = TextPrimaryGreen
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteChatMessage(msg.id, msg.channelId)
+                        messageToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                ) {
+                    Text("🗑️ सभी के लिए हटाएं", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { messageToDelete = null }) {
+                    Text("रद्द करें", color = TextSecondaryGreen)
+                }
+            }
+        )
     }
 
     Column(modifier = Modifier.fillMaxSize().imePadding()) {
@@ -225,14 +275,14 @@ fun LiveChatSection(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(9.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF22C55E))
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "● ऑनलाइन लाइव नेटवर्क सक्रिय",
-                            fontSize = 11.sp,
+                            text = "🟢 ऑनलाइन नेटवर्क (${onlineMemberList.size} सक्रिय)",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = PrimaryGreen
                         )
@@ -255,6 +305,53 @@ fun LiveChatSection(
                                 fontWeight = FontWeight.Bold,
                                 color = PineGreenDark
                             )
+                        }
+                    }
+                }
+
+                // Live Online Members Horizontal Tray
+                if (onlineMemberList.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MintBackground.copy(alpha = 0.5f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "🟢 लाइव ऑनलाइन सदस्य:",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DeepForestGreen
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(onlineMemberList) { member ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.White)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF22C55E))
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = member.fullName.split(" ").firstOrNull() ?: member.fullName,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextPrimaryGreen
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -308,6 +405,7 @@ fun LiveChatSection(
                     it.fullName.trim().equals(msg.senderName.trim(), ignoreCase = true) ||
                     msg.senderName.contains(it.fullName.take(5), ignoreCase = true)
                 }
+                val canDelete = isMe || isAdminLoggedIn
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -371,12 +469,35 @@ fun LiveChatSection(
                                 lineHeight = 17.sp
                             )
 
-                            Text(
-                                text = msg.timeDisplay,
-                                fontSize = 9.sp,
-                                color = if (isMe) Color.White.copy(alpha = 0.75f) else TextSecondaryGreen,
-                                modifier = Modifier.align(Alignment.End)
-                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (canDelete) {
+                                    IconButton(
+                                        onClick = { messageToDelete = msg },
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.DeleteOutline,
+                                            contentDescription = "संदेश हटाएं",
+                                            tint = if (isMe) Color.White.copy(alpha = 0.85f) else Color(0xFFDC2626),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                } else {
+                                    Spacer(modifier = Modifier.width(1.dp))
+                                }
+
+                                Text(
+                                    text = msg.timeDisplay,
+                                    fontSize = 9.sp,
+                                    color = if (isMe) Color.White.copy(alpha = 0.75f) else TextSecondaryGreen
+                                )
+                            }
                         }
                     }
                 }

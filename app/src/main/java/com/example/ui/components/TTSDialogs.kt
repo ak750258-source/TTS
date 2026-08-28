@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1954,12 +1955,37 @@ fun DocumentViewerDialog(
                             )
                         }
 
-                        Text(
-                            text = doc.accessLevel,
-                            fontSize = 12.sp,
-                            color = EmeraldGreen,
-                            fontWeight = FontWeight.Medium
-                        )
+                        val isConfidential = doc.accessLevel.contains("गोपनीय") || doc.accessLevel.contains("Confidential")
+                        val isInternal = doc.accessLevel.contains("कमेटी") || doc.accessLevel.contains("Internal")
+                        val badgeBg = when {
+                            isConfidential -> Color(0xFFFEE2E2)
+                            isInternal -> Color(0xFFE0F2FE)
+                            else -> SoftMintContainer
+                        }
+                        val badgeTextColor = when {
+                            isConfidential -> Color(0xFFDC2626)
+                            isInternal -> Color(0xFF0284C7)
+                            else -> EmeraldGreen
+                        }
+                        val badgeIcon = when {
+                            isConfidential -> "🔒 "
+                            isInternal -> "👥 "
+                            else -> "🌐 "
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(badgeBg)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "$badgeIcon${doc.accessLevel}",
+                                fontSize = 11.sp,
+                                color = badgeTextColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     Text(
@@ -2238,26 +2264,68 @@ fun AddDocumentDialog(
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val base64 = ImageUtils.uriToBase64(context, uri)
-                attachmentUri = base64 ?: uri.toString()
-                attachmentName = "संलग्नक_${System.currentTimeMillis().toString().takeLast(6)}.jpg"
+                try {
+                    var pickedFileName = "संलग्नक_${System.currentTimeMillis().toString().takeLast(6)}.jpg"
+                    try {
+                        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (cursor.moveToFirst() && nameIndex >= 0) {
+                                val name = cursor.getString(nameIndex)
+                                if (!name.isNullOrBlank()) pickedFileName = name
+                            }
+                        }
+                    } catch (_: Exception) {}
+
+                    val base64 = ImageUtils.uriToBase64(context, uri, maxDimension = 180, quality = 50)
+                    attachmentUri = base64 ?: uri.toString()
+                    attachmentName = pickedFileName
+                } catch (e: Exception) {
+                    attachmentUri = uri.toString()
+                    attachmentName = "संलग्नक_${System.currentTimeMillis().toString().takeLast(6)}.jpg"
+                }
             }
         }
     }
 
     val categoryOptions = listOf(
-        "प्रशासनिक आदेश",
-        "जुलूस नियमावली व रूट मैप",
-        "सुरक्षा व अनुमति पत्र",
-        "लंगर व सबील व्यवस्था",
-        "वित्तीय ऑडिट रिपोर्ट",
-        "आधिकारिक प्रस्ताव"
+        "📋 प्रशासनिक आदेश",
+        "🗺️ जुलूस नियमावली व रूट मैप",
+        "🛡️ सुरक्षा व अनुमति पत्र",
+        "🍲 लंगर व सबील व्यवस्था",
+        "📊 वित्तीय ऑडिट रिपोर्ट",
+        "📜 आधिकारिक प्रस्ताव"
     )
 
-    val accessLevelOptions = listOf(
-        "सार्वजनिक (Public)",
-        "कमेटी सदस्य केवल (Internal)",
-        "गोपनीय (Confidential)"
+    data class AccessLevelItem(
+        val key: String,
+        val title: String,
+        val description: String,
+        val icon: String,
+        val badgeColor: Color
+    )
+
+    val accessLevelItems = listOf(
+        AccessLevelItem(
+            key = "सार्वजनिक (Public)",
+            title = "सार्वजनिक (Public)",
+            description = "सभी सदस्यों एवं सामान्य जन के लिए सुलभ",
+            icon = "🌐",
+            badgeColor = Color(0xFF16A34A)
+        ),
+        AccessLevelItem(
+            key = "कमेटी सदस्य केवल (Internal)",
+            title = "कमेटी सदस्य केवल (Internal)",
+            description = "केवल पंजीकृत TTS कमेटी सदस्यों के लिए",
+            icon = "👥",
+            badgeColor = Color(0xFF0284C7)
+        ),
+        AccessLevelItem(
+            key = "गोपनीय (Confidential)",
+            title = "गोपनीय (Confidential)",
+            description = "अति-गोपनीय • केवल मुख्य पदाधिकारी व एडमिन के लिए",
+            icon = "🔒",
+            badgeColor = Color(0xFFDC2626)
+        )
     )
 
     Dialog(
@@ -2276,7 +2344,7 @@ fun AddDocumentDialog(
                     .fillMaxWidth()
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2309,32 +2377,134 @@ fun AddDocumentDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Category Selection (Full Grid with all options visible)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = "दस्तावेज़ श्रेणी (Category):",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimaryGreen
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        categoryOptions.take(3).forEach { cat ->
-                            val isSel = category == cat
-                            Box(
+                    categoryOptions.chunked(2).forEach { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowItems.forEach { cat ->
+                                val cleanCatName = cat.substringAfter(" ")
+                                val isSel = category.contains(cleanCatName) || category == cat
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSel) PrimaryGreen else SoftMintContainer)
+                                        .border(
+                                            width = if (isSel) 1.5.dp else 1.dp,
+                                            color = if (isSel) EmeraldGreen else BorderLightGreen,
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable { category = cleanCatName }
+                                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = cat,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSel) Color.White else TextPrimaryGreen,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                            if (rowItems.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+
+                // Access Level / Confidentiality Selection (Spacious, Clear & Prominent)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "पहुँच स्तर / गोपनीयता (Access Level):",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimaryGreen
+                    )
+                    accessLevelItems.forEach { item ->
+                        val isSel = accessLevel == item.key
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { accessLevel = item.key },
+                            color = if (isSel) item.badgeColor.copy(alpha = 0.08f) else Color(0xFFF8FAF8),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = if (isSel) 1.5.dp else 1.dp,
+                                color = if (isSel) item.badgeColor else Color(0xFFE2E8F0)
+                            )
+                        ) {
+                            Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSel) PrimaryGreen else SoftMintContainer)
-                                    .clickable { category = cat }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Text(
-                                    text = cat,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSel) Color.White else TextPrimaryGreen
+                                    text = item.icon,
+                                    fontSize = 18.sp
                                 )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = item.title,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSel) item.badgeColor else TextPrimaryGreen
+                                        )
+                                        if (isSel) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(item.badgeColor)
+                                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                                            ) {
+                                                Text(
+                                                    text = "सक्रिय (Selected)",
+                                                    color = Color.White,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = item.description,
+                                        fontSize = 10.sp,
+                                        color = TextSecondaryGreen
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .border(2.dp, if (isSel) item.badgeColor else Color(0xFFCBD5E1), CircleShape)
+                                        .background(if (isSel) item.badgeColor else Color.Transparent),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSel) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.White)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -2381,37 +2551,6 @@ fun AddDocumentDialog(
                             Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("फाइल / स्कैन की हुई PDF या फोटो जोड़ें", fontSize = 12.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "पहुँच स्तर (Access Level):",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimaryGreen
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        accessLevelOptions.forEach { acc ->
-                            val isSel = accessLevel == acc
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSel) PineGreenDark else SoftMintContainer)
-                                    .clickable { accessLevel = acc }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = acc,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSel) Color.White else TextPrimaryGreen
-                                )
-                            }
                         }
                     }
                 }

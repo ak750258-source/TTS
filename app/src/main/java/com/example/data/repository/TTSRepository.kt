@@ -158,6 +158,48 @@ class TTSRepository(
             }
         }
 
+        // Real-time Chat message deletion across all devices
+        firestoreService.listenToChatDelete { messageId ->
+            repositoryScope.launch {
+                ttsDao.deleteChatMessage(messageId)
+            }
+        }
+
+        // Listen for sync request from any newly joined device and sync all database records
+        firestoreService.listenToSyncRequest {
+            repositoryScope.launch {
+                val docs = ttsDao.getAllDocumentsList()
+                docs.forEach { d ->
+                    firestoreService.syncDocumentToCloud(d)
+                }
+
+                val members = ttsDao.getAllMembersList()
+                members.forEach { m ->
+                    firestoreService.syncMemberToCloud(m)
+                }
+
+                val notices = ttsDao.getAllNoticesList()
+                notices.forEach { n ->
+                    firestoreService.syncNoticeToCloud(n)
+                }
+
+                val donations = ttsDao.getAllDonationsList()
+                donations.forEach { don ->
+                    firestoreService.syncDonationToCloud(don)
+                }
+
+                val meetings = ttsDao.getAllMeetingsList()
+                meetings.forEach { mtg ->
+                    firestoreService.syncMeetingToCloud(mtg)
+                }
+
+                val expenses = ttsDao.getAllExpensesList()
+                expenses.forEach { exp ->
+                    firestoreService.syncExpenseToCloud(exp)
+                }
+            }
+        }
+
         // Global data wipe listener
         firestoreService.listenToClearAll {
             repositoryScope.launch {
@@ -227,8 +269,10 @@ class TTSRepository(
     // Meetings
     val allMeetings: Flow<List<Meeting>> = ttsDao.getAllMeetings()
     suspend fun insertMeeting(meeting: Meeting): Long {
-        val id = ttsDao.insertMeeting(meeting)
-        val saved = meeting.copy(id = id)
+        val uniqueId = if (meeting.id > 0) meeting.id else (System.currentTimeMillis() + (1..999).random().toLong())
+        val withId = meeting.copy(id = uniqueId)
+        val id = ttsDao.insertMeeting(withId)
+        val saved = withId.copy(id = id)
         firestoreService.syncMeetingToCloud(saved)
         return id
     }
@@ -240,8 +284,10 @@ class TTSRepository(
     // Documents
     val allDocuments: Flow<List<OfficialDocument>> = ttsDao.getAllDocuments()
     suspend fun insertDocument(doc: OfficialDocument): Long {
-        val id = ttsDao.insertDocument(doc)
-        val saved = doc.copy(id = id)
+        val uniqueId = if (doc.id > 0) doc.id else (System.currentTimeMillis() + (1..999).random().toLong())
+        val withId = doc.copy(id = uniqueId)
+        val id = ttsDao.insertDocument(withId)
+        val saved = withId.copy(id = id)
         firestoreService.syncDocumentToCloud(saved)
         return id
     }
@@ -253,8 +299,10 @@ class TTSRepository(
     // Notices
     val allNotices: Flow<List<Notice>> = ttsDao.getAllNotices()
     suspend fun insertNotice(notice: Notice): Long {
-        val id = ttsDao.insertNotice(notice)
-        val saved = notice.copy(id = id)
+        val uniqueId = if (notice.id > 0) notice.id else (System.currentTimeMillis() + (1..999).random().toLong())
+        val withId = notice.copy(id = uniqueId)
+        val id = ttsDao.insertNotice(withId)
+        val saved = withId.copy(id = id)
         firestoreService.syncNoticeToCloud(saved)
         return id
     }
@@ -271,8 +319,10 @@ class TTSRepository(
     val totalApprovedDonationsSum: Flow<Double?> = ttsDao.getTotalApprovedDonationsSum()
     
     suspend fun insertDonation(donation: Donation): Long {
-        val id = ttsDao.insertDonation(donation)
-        val saved = donation.copy(id = id)
+        val uniqueId = if (donation.id > 0) donation.id else (System.currentTimeMillis() + (1..999).random().toLong())
+        val withId = donation.copy(id = uniqueId)
+        val id = ttsDao.insertDonation(withId)
+        val saved = withId.copy(id = id)
         firestoreService.syncDonationToCloud(saved)
         return id
     }
@@ -313,8 +363,10 @@ class TTSRepository(
     val totalExpensesSum: Flow<Double?> = ttsDao.getTotalExpensesSum()
 
     suspend fun insertExpense(expense: Expense): Long {
-        val id = ttsDao.insertExpense(expense)
-        val saved = expense.copy(id = id)
+        val uniqueId = if (expense.id > 0) expense.id else (System.currentTimeMillis() + (1..999).random().toLong())
+        val withId = expense.copy(id = uniqueId)
+        val id = ttsDao.insertExpense(withId)
+        val saved = withId.copy(id = id)
         firestoreService.syncExpenseToCloud(saved)
         return id
     }
@@ -347,7 +399,10 @@ class TTSRepository(
         return id
     }
 
-    suspend fun deleteChatMessage(id: Long) = ttsDao.deleteChatMessage(id)
+    suspend fun deleteChatMessage(id: Long, channelId: String = "general") {
+        ttsDao.deleteChatMessage(id)
+        firestoreService.deleteChatMessageFromCloud(id, channelId)
+    }
 
     suspend fun clearAllChatMessages() {
         ttsDao.clearAllChatMessages()

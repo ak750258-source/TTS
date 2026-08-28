@@ -137,6 +137,8 @@ class FirebaseFirestoreService(context: Context? = null) {
     private val expenseDeleteListeners = mutableListOf<(Long) -> Unit>()
 
     private val chatListeners = ConcurrentHashMap<String, MutableList<(List<ChatMessage>) -> Unit>>()
+    private val chatDeleteListeners = mutableListOf<(Long) -> Unit>()
+    private val syncRequestListeners = mutableListOf<() -> Unit>()
     private val clearAllListeners = mutableListOf<() -> Unit>()
 
     private var currentActiveMemberId: Long = 0L
@@ -473,6 +475,21 @@ class FirebaseFirestoreService(context: Context? = null) {
                         }
                     }
                 }
+                "CHAT_DELETE" -> {
+                    val id = payload?.optLong("id", 0L) ?: payload?.optLong("messageId", 0L) ?: root.optLong("id", 0L)
+                    if (id > 0) {
+                        synchronized(chatDeleteListeners) {
+                            chatDeleteListeners.forEach { it(id) }
+                        }
+                    }
+                }
+                "REQUEST_FULL_SYNC" -> {
+                    if (isFromAnotherDevice) {
+                        synchronized(syncRequestListeners) {
+                            syncRequestListeners.forEach { it() }
+                        }
+                    }
+                }
                 "PRESENCE_PING" -> {
                     val memberId = root.optLong("memberId", 0L)
                     val isOnline = root.optBoolean("isOnline", true)
@@ -661,6 +678,22 @@ class FirebaseFirestoreService(context: Context? = null) {
         return null
     }
 
+    fun listenToChatDelete(onMessageDeleted: (Long) -> Unit) {
+        synchronized(chatDeleteListeners) {
+            chatDeleteListeners.add(onMessageDeleted)
+        }
+    }
+
+    fun listenToSyncRequest(onSyncRequested: () -> Unit) {
+        synchronized(syncRequestListeners) {
+            syncRequestListeners.add(onSyncRequested)
+        }
+    }
+
+    fun requestDataSync() {
+        broadcastEvent("REQUEST_FULL_SYNC", null)
+    }
+
     fun listenToClearAll(onClearAll: () -> Unit) {
         synchronized(clearAllListeners) {
             clearAllListeners.add(onClearAll)
@@ -670,6 +703,14 @@ class FirebaseFirestoreService(context: Context? = null) {
     // --- SYNC ACTIONS TO CLOUD ---
     suspend fun syncMemberToCloud(member: Member) {
         withContext(Dispatchers.IO) {
+            // Optimize photoUri for cloud payload: Keep within safe envelope size
+            val photoForCloud = if (member.photoUri != null && member.photoUri.length > 2000) {
+                // If it's a huge base64 string, don't crash the cloud envelope; it remains stored in local Room
+                ""
+            } else {
+                member.photoUri ?: ""
+            }
+
             val json = JSONObject().apply {
                 put("id", member.id)
                 put("memberCode", member.memberCode)
@@ -687,7 +728,7 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("isBestPerformer", member.isBestPerformer)
                 put("bestPerformerBadge", member.bestPerformerBadge ?: "")
                 put("photoResName", member.photoResName ?: "")
-                put("photoUri", member.photoUri ?: "")
+                put("photoUri", photoForCloud)
             }
             broadcastEvent("MEMBER_UPSERT", json)
         }
@@ -787,6 +828,12 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     suspend fun syncDocumentToCloud(doc: OfficialDocument) {
         withContext(Dispatchers.IO) {
+            val safeAttachmentUri = if (!doc.attachmentUri.isNullOrBlank() && doc.attachmentUri.length > 3500) {
+                // If attachment is too large, preserve header/preview so payload doesn't exceed free cloud limits
+                if (doc.attachmentUri.startsWith("data:image")) doc.attachmentUri.take(3000) else ""
+            } else {
+                doc.attachmentUri ?: ""
+            }
             val json = JSONObject().apply {
                 put("id", doc.id)
                 put("title", doc.title)
@@ -797,7 +844,7 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("accessLevel", doc.accessLevel)
                 put("summary", doc.summary)
                 put("fullContent", doc.fullContent)
-                put("attachmentUri", doc.attachmentUri ?: "")
+                put("attachmentUri", safeAttachmentUri)
                 put("attachmentName", doc.attachmentName ?: "")
             }
             broadcastEvent("DOCUMENT_UPSERT", json)
@@ -858,6 +905,16 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("isAnnouncement", message.isAnnouncement)
             }
             broadcastEvent("CHAT_MESSAGE", json)
+        }
+    }
+
+    suspend fun deleteChatMessageFromCloud(messageId: Long, channelId: String = "general") {
+        withContext(Dispatchers.IO) {
+            val json = JSONObject().apply {
+                put("id", messageId)
+                put("channelId", channelId)
+            }
+            broadcastEvent("CHAT_DELETE", json)
         }
     }
 
@@ -1010,16 +1067,17 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     private fun parseDocument(obj: JSONObject): OfficialDocument? {
         return try {
-            val id = obj.optLong("id", 0L)
-            if (id <= 0) return null
+            val title = obj.optString("title", "").trim()
+            if (title.isBlank()) return null
+            val id = obj.optLong("id", 0L).let { if (it > 0) it else System.currentTimeMillis() }
             OfficialDocument(
                 id = id,
-                title = obj.optString("title", ""),
+                title = title,
                 category = obj.optString("category", "कमेटी नियमावली"),
                 refCode = obj.optString("refCode", "DOC-$id"),
                 publishedDate = obj.optString("publishedDate", ""),
-                fileSize = obj.optString("fileSize", "1.2 MB"),
-                accessLevel = obj.optString("accessLevel", "All Members"),
+                fileSize = obj.optString("fileSize", "सत्यापित प्रति"),
+                accessLevel = obj.optString("accessLevel", "सार्वजनिक (Public)"),
                 summary = obj.optString("summary", ""),
                 fullContent = obj.optString("fullContent", ""),
                 attachmentUri = obj.optString("attachmentUri").takeIf { it.isNotBlank() },

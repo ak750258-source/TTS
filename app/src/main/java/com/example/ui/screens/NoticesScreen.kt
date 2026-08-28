@@ -343,13 +343,33 @@ fun NoticesScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(SoftMintContainer)
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                                    ) {
-                                        Text(doc.category, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PineGreenDark)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(SoftMintContainer)
+                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(doc.category, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PineGreenDark)
+                                        }
+                                        val isConfidential = doc.accessLevel.contains("गोपनीय") || doc.accessLevel.contains("Confidential")
+                                        val isInternal = doc.accessLevel.contains("कमेटी") || doc.accessLevel.contains("Internal")
+                                        if (isConfidential || isInternal) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(if (isConfidential) Color(0xFFFEE2E2) else Color(0xFFE0F2FE))
+                                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (isConfidential) "🔒 गोपनीय" else "👥 कमेटी केवल",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isConfidential) Color(0xFFDC2626) else Color(0xFF0284C7)
+                                                )
+                                            }
+                                        }
                                     }
                                     
                                     Row(verticalAlignment = Alignment.CenterVertically) {
