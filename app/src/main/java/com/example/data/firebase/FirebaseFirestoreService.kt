@@ -117,6 +117,10 @@ class FirebaseFirestoreService(context: Context? = null) {
     // Active candidate last seen timestamp map
     private val candidateLastSeenMap = ConcurrentHashMap<Long, Long>()
 
+    // Persistent clear timestamps to prevent old messages/records from re-appearing after data clear or sync
+    private var chatClearedTimestamp: Long = 0L
+    private var dataClearedTimestamp: Long = 0L
+
     // Listeners for Repository updates
     private val memberUpsertListeners = mutableListOf<(List<Member>) -> Unit>()
     private val memberDeleteListeners = mutableListOf<(Long) -> Unit>()
@@ -140,15 +144,60 @@ class FirebaseFirestoreService(context: Context? = null) {
     private val chatDeleteListeners = mutableListOf<(Long) -> Unit>()
     private val syncRequestListeners = mutableListOf<() -> Unit>()
     private val clearAllListeners = mutableListOf<() -> Unit>()
+    private val clearChatListeners = mutableListOf<() -> Unit>()
+    private val clearDonationListeners = mutableListOf<() -> Unit>()
+    private val clearExpenseListeners = mutableListOf<() -> Unit>()
+    private val clearNoticeListeners = mutableListOf<() -> Unit>()
+    private val clearMeetingListeners = mutableListOf<() -> Unit>()
+    private val clearDocumentListeners = mutableListOf<() -> Unit>()
+    private val clearMemberListeners = mutableListOf<() -> Unit>()
 
     private var currentActiveMemberId: Long = 0L
     private var currentActiveMemberName: String = ""
 
     init {
+        appContext?.let { ctx ->
+            try {
+                val sp = ctx.getSharedPreferences("tts_cloud_sync_prefs", Context.MODE_PRIVATE)
+                chatClearedTimestamp = sp.getLong("chat_cleared_ts", 0L)
+                dataClearedTimestamp = sp.getLong("data_cleared_ts", 0L)
+            } catch (_: Exception) {}
+        }
         Log.d(TAG, "Initializing Real-Time Cloud Sync Engine with Device ID: $DEVICE_ID")
         startSseEventListener()
         startCatchupPoll()
         startPeriodicSyncHeartbeat()
+    }
+
+    fun setContext(context: Context) {
+        appContext = context.applicationContext
+        try {
+            val sp = context.applicationContext.getSharedPreferences("tts_cloud_sync_prefs", Context.MODE_PRIVATE)
+            chatClearedTimestamp = maxOf(chatClearedTimestamp, sp.getLong("chat_cleared_ts", 0L))
+            dataClearedTimestamp = maxOf(dataClearedTimestamp, sp.getLong("data_cleared_ts", 0L))
+        } catch (_: Exception) {}
+    }
+
+    fun recordChatCleared(timestamp: Long = System.currentTimeMillis()) {
+        chatClearedTimestamp = maxOf(chatClearedTimestamp, timestamp)
+        try {
+            appContext?.getSharedPreferences("tts_cloud_sync_prefs", Context.MODE_PRIVATE)
+                ?.edit()
+                ?.putLong("chat_cleared_ts", chatClearedTimestamp)
+                ?.apply()
+        } catch (_: Exception) {}
+    }
+
+    fun recordDataCleared(timestamp: Long = System.currentTimeMillis()) {
+        dataClearedTimestamp = maxOf(dataClearedTimestamp, timestamp)
+        chatClearedTimestamp = maxOf(chatClearedTimestamp, timestamp)
+        try {
+            appContext?.getSharedPreferences("tts_cloud_sync_prefs", Context.MODE_PRIVATE)
+                ?.edit()
+                ?.putLong("data_cleared_ts", dataClearedTimestamp)
+                ?.putLong("chat_cleared_ts", chatClearedTimestamp)
+                ?.apply()
+        } catch (_: Exception) {}
     }
 
     // --- REAL-TIME SSE STREAMING CONNECTION ---
@@ -301,7 +350,7 @@ class FirebaseFirestoreService(context: Context? = null) {
                 "CHAT_MESSAGE" -> {
                     if (payload != null) {
                         val msg = parseChatMessage(payload)
-                        if (msg != null) {
+                        if (msg != null && msg.timestamp > chatClearedTimestamp) {
                             // Notify all-channel global listeners
                             chatListeners["all"]?.let { allList ->
                                 synchronized(allList) {
@@ -502,7 +551,46 @@ class FirebaseFirestoreService(context: Context? = null) {
                         _onlineCandidateIds.value = candidateLastSeenMap.keys().toList().toSet()
                     }
                 }
+                "CLEAR_CHAT" -> {
+                    val clearedAt = payload?.optLong("clearedAt") ?: root.optLong("timestamp", System.currentTimeMillis())
+                    recordChatCleared(clearedAt)
+                    synchronized(clearChatListeners) {
+                        clearChatListeners.forEach { it() }
+                    }
+                }
+                "CLEAR_MEMBERS" -> {
+                    synchronized(clearMemberListeners) {
+                        clearMemberListeners.forEach { it() }
+                    }
+                }
+                "CLEAR_MEETINGS" -> {
+                    synchronized(clearMeetingListeners) {
+                        clearMeetingListeners.forEach { it() }
+                    }
+                }
+                "CLEAR_NOTICES" -> {
+                    synchronized(clearNoticeListeners) {
+                        clearNoticeListeners.forEach { it() }
+                    }
+                }
+                "CLEAR_DOCUMENTS" -> {
+                    synchronized(clearDocumentListeners) {
+                        clearDocumentListeners.forEach { it() }
+                    }
+                }
+                "CLEAR_DONATIONS" -> {
+                    synchronized(clearDonationListeners) {
+                        clearDonationListeners.forEach { it() }
+                    }
+                }
+                "CLEAR_EXPENSES" -> {
+                    synchronized(clearExpenseListeners) {
+                        clearExpenseListeners.forEach { it() }
+                    }
+                }
                 "CLEAR_ALL_DATA" -> {
+                    val clearedAt = payload?.optLong("clearedAt") ?: root.optLong("timestamp", System.currentTimeMillis())
+                    recordDataCleared(clearedAt)
                     synchronized(clearAllListeners) {
                         clearAllListeners.forEach { it() }
                     }
@@ -700,16 +788,52 @@ class FirebaseFirestoreService(context: Context? = null) {
         }
     }
 
+    fun listenToClearChat(onClearChat: () -> Unit) {
+        synchronized(clearChatListeners) {
+            clearChatListeners.add(onClearChat)
+        }
+    }
+
+    fun listenToClearMembers(onClearMembers: () -> Unit) {
+        synchronized(clearMemberListeners) {
+            clearMemberListeners.add(onClearMembers)
+        }
+    }
+
+    fun listenToClearMeetings(onClearMeetings: () -> Unit) {
+        synchronized(clearMeetingListeners) {
+            clearMeetingListeners.add(onClearMeetings)
+        }
+    }
+
+    fun listenToClearNotices(onClearNotices: () -> Unit) {
+        synchronized(clearNoticeListeners) {
+            clearNoticeListeners.add(onClearNotices)
+        }
+    }
+
+    fun listenToClearDocuments(onClearDocuments: () -> Unit) {
+        synchronized(clearDocumentListeners) {
+            clearDocumentListeners.add(onClearDocuments)
+        }
+    }
+
+    fun listenToClearDonations(onClearDonations: () -> Unit) {
+        synchronized(clearDonationListeners) {
+            clearDonationListeners.add(onClearDonations)
+        }
+    }
+
+    fun listenToClearExpenses(onClearExpenses: () -> Unit) {
+        synchronized(clearExpenseListeners) {
+            clearExpenseListeners.add(onClearExpenses)
+        }
+    }
+
     // --- SYNC ACTIONS TO CLOUD ---
     suspend fun syncMemberToCloud(member: Member) {
         withContext(Dispatchers.IO) {
-            // Optimize photoUri for cloud payload: Keep within safe envelope size
-            val photoForCloud = if (member.photoUri != null && member.photoUri.length > 2000) {
-                // If it's a huge base64 string, don't crash the cloud envelope; it remains stored in local Room
-                ""
-            } else {
-                member.photoUri ?: ""
-            }
+            val photoForCloud = member.photoUri ?: ""
 
             val json = JSONObject().apply {
                 put("id", member.id)
@@ -888,7 +1012,9 @@ class FirebaseFirestoreService(context: Context? = null) {
     }
 
     suspend fun clearAllExpensesFromCloud() {
-        broadcastEvent("CLEAR_EXPENSES", null)
+        val now = System.currentTimeMillis()
+        val json = JSONObject().apply { put("clearedAt", now) }
+        broadcastEvent("CLEAR_EXPENSES", json)
     }
 
     suspend fun syncChatMessageToCloud(message: ChatMessage) {
@@ -919,31 +1045,47 @@ class FirebaseFirestoreService(context: Context? = null) {
     }
 
     suspend fun clearAllChatFromCloud() {
-        broadcastEvent("CLEAR_CHAT", null)
+        val now = System.currentTimeMillis()
+        recordChatCleared(now)
+        val json = JSONObject().apply { put("clearedAt", now) }
+        broadcastEvent("CLEAR_CHAT", json)
     }
 
     suspend fun clearAllMembersFromCloud() {
-        broadcastEvent("CLEAR_MEMBERS", null)
+        val now = System.currentTimeMillis()
+        val json = JSONObject().apply { put("clearedAt", now) }
+        broadcastEvent("CLEAR_MEMBERS", json)
     }
 
     suspend fun clearAllMeetingsFromCloud() {
-        broadcastEvent("CLEAR_MEETINGS", null)
+        val now = System.currentTimeMillis()
+        val json = JSONObject().apply { put("clearedAt", now) }
+        broadcastEvent("CLEAR_MEETINGS", json)
     }
 
     suspend fun clearAllNoticesFromCloud() {
-        broadcastEvent("CLEAR_NOTICES", null)
+        val now = System.currentTimeMillis()
+        val json = JSONObject().apply { put("clearedAt", now) }
+        broadcastEvent("CLEAR_NOTICES", json)
     }
 
     suspend fun clearAllDocumentsFromCloud() {
-        broadcastEvent("CLEAR_DOCUMENTS", null)
+        val now = System.currentTimeMillis()
+        val json = JSONObject().apply { put("clearedAt", now) }
+        broadcastEvent("CLEAR_DOCUMENTS", json)
     }
 
     suspend fun clearAllDonationsFromCloud() {
-        broadcastEvent("CLEAR_DONATIONS", null)
+        val now = System.currentTimeMillis()
+        val json = JSONObject().apply { put("clearedAt", now) }
+        broadcastEvent("CLEAR_DONATIONS", json)
     }
 
     suspend fun clearAllAppCloudData() {
-        broadcastEvent("CLEAR_ALL_DATA", null)
+        val now = System.currentTimeMillis()
+        recordDataCleared(now)
+        val json = JSONObject().apply { put("clearedAt", now) }
+        broadcastEvent("CLEAR_ALL_DATA", json)
     }
 
     // --- JSON PARSERS ---

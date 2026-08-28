@@ -209,6 +209,50 @@ class TTSRepository(
                 ttsDao.clearAllMeetings()
                 ttsDao.clearAllDocuments()
                 ttsDao.clearAllMembers()
+                ttsDao.clearAllExpenses()
+            }
+        }
+
+        // Specific section clear listeners
+        firestoreService.listenToClearChat {
+            repositoryScope.launch {
+                ttsDao.clearAllChatMessages()
+            }
+        }
+
+        firestoreService.listenToClearDonations {
+            repositoryScope.launch {
+                ttsDao.clearAllDonations()
+            }
+        }
+
+        firestoreService.listenToClearExpenses {
+            repositoryScope.launch {
+                ttsDao.clearAllExpenses()
+            }
+        }
+
+        firestoreService.listenToClearNotices {
+            repositoryScope.launch {
+                ttsDao.clearAllNotices()
+            }
+        }
+
+        firestoreService.listenToClearMeetings {
+            repositoryScope.launch {
+                ttsDao.clearAllMeetings()
+            }
+        }
+
+        firestoreService.listenToClearDocuments {
+            repositoryScope.launch {
+                ttsDao.clearAllDocuments()
+            }
+        }
+
+        firestoreService.listenToClearMembers {
+            repositoryScope.launch {
+                ttsDao.clearAllMembers()
             }
         }
     }

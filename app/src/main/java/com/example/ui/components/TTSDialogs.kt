@@ -856,6 +856,365 @@ fun AddMemberDialog(
     }
 }
 
+// --- EDIT MEMBER PROFILE DIALOG ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditMemberDialog(
+    member: Member,
+    isAdmin: Boolean = true,
+    onDismiss: () -> Unit,
+    onConfirm: (Member) -> Unit
+) {
+    var fullName by remember { mutableStateOf(member.fullName) }
+    var designation by remember { mutableStateOf(member.designation) }
+    var committeeWing by remember { mutableStateOf(member.committeeWing) }
+    var phoneNumber by remember { mutableStateOf(member.phoneNumber) }
+    var email by remember { mutableStateOf(member.email) }
+    var bloodGroup by remember { mutableStateOf(member.bloodGroup) }
+    var address by remember { mutableStateOf(member.address) }
+    var emergencyContact by remember { mutableStateOf(member.emergencyContact) }
+    var isBestPerformer by remember { mutableStateOf(member.isBestPerformer) }
+    var bestBadge by remember { mutableStateOf(member.bestPerformerBadge ?: "12 रबी-उल-अव्वल सर्वश्रेष्ठ खिदमतगार") }
+    var selectedPhotoUri by remember { mutableStateOf(member.photoUri) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri)
+                selectedPhotoUri = base64 ?: uri.toString()
+            }
+        }
+    }
+
+    var expandedDesignation by remember { mutableStateOf(false) }
+    var expandedWing by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "प्रोफाइल विवरण संपादित करें",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = TextPrimaryGreen
+                        )
+                        Text(
+                            text = "सदस्य विवरण बदलें व सभी ऐप पर तुरंत लाइव सिंक करें",
+                            fontSize = 11.sp,
+                            color = TextSecondaryGreen
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                if (errorMsg != null) {
+                    Text(
+                        text = errorMsg!!,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                // Member Photo Preview & Change button
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = EmeraldGreenLight.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(PrimaryGreen.copy(alpha = 0.15f))
+                                .border(2.dp, PrimaryGreen, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (!selectedPhotoUri.isNullOrBlank()) {
+                                SafePhotoDisplay(
+                                    photoUri = selectedPhotoUri,
+                                    contentDescription = "Profile Photo",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Default Avatar",
+                                    tint = PrimaryGreen,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "प्रोफाइल फोटो (Profile Photo)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = TextPrimaryGreen
+                            )
+                            Text(
+                                text = if (!selectedPhotoUri.isNullOrBlank()) "फोटो सेट है (Photo Set)" else "कोई फोटो नहीं चुनी",
+                                fontSize = 11.sp,
+                                color = TextSecondaryGreen
+                            )
+                        }
+
+                        Button(
+                            onClick = { photoPickerLauncher.launch("image/*") },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (!selectedPhotoUri.isNullOrBlank()) "बदलें" else "लगाएं", fontSize = 11.sp, color = Color.White)
+                        }
+                    }
+                }
+
+                // Full Name
+                OutlinedTextField(
+                    value = fullName,
+                    onValueChange = { fullName = it },
+                    label = { Text("सदस्य का पूरा नाम (Full Name) *") },
+                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = EmeraldGreen) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("edit_member_fullname_input"),
+                    singleLine = true
+                )
+
+                // Phone Number
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = { Text("मोबाइल नंबर (WhatsApp / Calling) *") },
+                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = EmeraldGreen) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Email
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("ईमेल पता (Email)") },
+                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = EmeraldGreen) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Blood Group
+                OutlinedTextField(
+                    value = bloodGroup,
+                    onValueChange = { bloodGroup = it },
+                    label = { Text("रक्त समूह (Blood Group e.g. B+, O+, AB+)") },
+                    leadingIcon = { Icon(Icons.Default.Favorite, contentDescription = null, tint = EmeraldGreen) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Committee Wing (Exposed Dropdown)
+                ExposedDropdownMenuBox(
+                    expanded = expandedWing,
+                    onExpandedChange = { expandedWing = !expandedWing }
+                ) {
+                    OutlinedTextField(
+                        value = committeeWing,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("कमेटी विंग (Committee Wing)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedWing) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedWing,
+                        onDismissRequest = { expandedWing = false }
+                    ) {
+                        HindiWingOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option, fontSize = 13.sp) },
+                                onClick = {
+                                    committeeWing = option
+                                    expandedWing = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Designation
+                if (isAdmin) {
+                    ExposedDropdownMenuBox(
+                        expanded = expandedDesignation,
+                        onExpandedChange = { expandedDesignation = !expandedDesignation }
+                    ) {
+                        OutlinedTextField(
+                            value = designation,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("पद (Designation)") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedDesignation) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expandedDesignation,
+                            onDismissRequest = { expandedDesignation = false }
+                        ) {
+                            HindiDesignationOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option, fontSize = 13.sp) },
+                                    onClick = {
+                                        designation = option
+                                        expandedDesignation = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = designation,
+                        onValueChange = { designation = it },
+                        label = { Text("पद (Designation)") },
+                        leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null, tint = EmeraldGreen) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+
+                // Address
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    label = { Text("मोहल्ला / निवासी पता (Address)") },
+                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = EmeraldGreen) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Emergency Contact
+                OutlinedTextField(
+                    value = emergencyContact,
+                    onValueChange = { emergencyContact = it },
+                    label = { Text("आपातकालीन फोन नंबर") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Best performer toggle (Admin only)
+                if (isAdmin) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("बेस्ट परफ़ॉर्मर के रूप में मार्क करें", fontSize = 13.sp, color = TextPrimaryGreen)
+                        Switch(
+                            checked = isBestPerformer,
+                            onCheckedChange = { isBestPerformer = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = PrimaryGreen)
+                        )
+                    }
+                    if (isBestPerformer) {
+                        OutlinedTextField(
+                            value = bestBadge,
+                            onValueChange = { bestBadge = it },
+                            label = { Text("सम्मान उपाधि / मेडल नाम") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (fullName.isBlank()) {
+                                errorMsg = "कृपया सदस्य का नाम दर्ज करें"
+                                return@Button
+                            }
+                            if (phoneNumber.length < 6) {
+                                errorMsg = "कृपया सही मोबाइल नंबर दर्ज करें"
+                                return@Button
+                            }
+                            val updated = member.copy(
+                                fullName = fullName.trim(),
+                                designation = designation,
+                                committeeWing = committeeWing,
+                                phoneNumber = phoneNumber.trim(),
+                                email = email.trim(),
+                                bloodGroup = bloodGroup.trim(),
+                                address = address.trim(),
+                                emergencyContact = emergencyContact.trim(),
+                                isBestPerformer = isBestPerformer,
+                                bestPerformerBadge = if (isBestPerformer) bestBadge else null,
+                                photoUri = selectedPhotoUri
+                            )
+                            onConfirm(updated)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                        modifier = Modifier.testTag("submit_edit_member_button")
+                    ) {
+                        Text("सहेजें व लाइव सिंक करें (Save & Sync)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // --- SELF REGISTER MEMBER DIALOG (FOR VOLUNTEERS/MEMBERS) ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

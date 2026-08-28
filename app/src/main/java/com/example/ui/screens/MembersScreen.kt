@@ -109,6 +109,7 @@ fun MembersScreen(
     onDistributeDesignation: (Member) -> Unit,
     onAwardBestPerformer: (Member) -> Unit,
     onUpdatePhoto: (Member) -> Unit = {},
+    onEditMember: (Member) -> Unit = {},
     onSelectForIDCard: (Member) -> Unit,
     onDeleteMember: (memberId: Long, memberName: String) -> Unit,
     onTriggerSync: () -> Unit = {},
@@ -310,6 +311,7 @@ fun MembersScreen(
                         onDistributeDesignation = { onDistributeDesignation(member) },
                         onAwardBestPerformer = { onAwardBestPerformer(member) },
                         onUpdatePhoto = { onUpdatePhoto(member) },
+                        onEditMember = { onEditMember(member) },
                         onSelectForIDCard = { onSelectForIDCard(member) },
                         onDeleteClick = { memberToDelete = member }
                     )
@@ -387,6 +389,7 @@ fun MemberRosterCard(
     onDistributeDesignation: () -> Unit,
     onAwardBestPerformer: () -> Unit,
     onUpdatePhoto: () -> Unit = {},
+    onEditMember: () -> Unit = {},
     onSelectForIDCard: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
@@ -557,17 +560,30 @@ fun MemberRosterCard(
                 OutlinedButton(
                     onClick = onSelectForIDCard,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryGreen),
-                    modifier = Modifier.weight(1f).testTag("view_id_card_${member.id}")
+                    modifier = Modifier.weight(1.1f).testTag("view_id_card_${member.id}")
                 ) {
                     Icon(Icons.Default.Badge, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("ID कार्ड देखें", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("ID कार्ड", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
 
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // Edit Profile Details Button
+                OutlinedButton(
+                    onClick = onEditMember,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepForestGreen),
+                    modifier = Modifier.weight(1.1f).testTag("edit_member_${member.id}")
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = PrimaryGreen)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("एडिट", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
 
                 // Admin: Distribute Designation Button
-                OutlinedButton(
+                IconButton(
                     onClick = {
                         if (isAdminLoggedIn) {
                             onDistributeDesignation()
@@ -575,14 +591,16 @@ fun MemberRosterCard(
                             onOpenAdminLogin()
                         }
                     },
-                    modifier = Modifier.weight(1f).testTag("distribute_desig_${member.id}")
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(LightSageCard)
+                        .testTag("distribute_desig_${member.id}")
                 ) {
-                    Icon(Icons.Default.Work, contentDescription = null, tint = GoldText, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("पद सौंपें", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DeepForestGreen)
+                    Icon(Icons.Default.Work, contentDescription = "पद सौंपें", tint = GoldText, modifier = Modifier.size(16.dp))
                 }
 
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(4.dp))
 
                 // Admin: Award Best Performer
                 IconButton(

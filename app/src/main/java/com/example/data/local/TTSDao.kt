@@ -191,4 +191,7 @@ interface TTSDao {
 
     @Query("DELETE FROM chat_messages")
     suspend fun clearAllChatMessages()
+
+    @Query("DELETE FROM chat_messages WHERE timestamp <= :timestamp")
+    suspend fun clearChatMessagesOlderThan(timestamp: Long)
 }
