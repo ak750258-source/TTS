@@ -107,5 +107,9 @@ data class ChatMessage(
     val messageText: String,
     val timestamp: Long = System.currentTimeMillis(),
     val timeDisplay: String,
-    val isAnnouncement: Boolean = false
+    val isAnnouncement: Boolean = false,
+    val senderMemberId: Long = 0L,
+    val senderDeviceId: String = "",
+    val status: String = "SENT", // "SENDING", "SENT", "SEEN"
+    val isSeen: Boolean = false
 )

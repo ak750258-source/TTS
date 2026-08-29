@@ -23,7 +23,7 @@ import kotlinx.coroutines.CoroutineScope
         Expense::class,
         ChatMessage::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class TTSDatabase : RoomDatabase() {

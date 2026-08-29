@@ -56,7 +56,19 @@ class TTSBackgroundSyncService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(SERVICE_NOTIFICATION_ID, createForegroundNotification())
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    SERVICE_NOTIFICATION_ID,
+                    createForegroundNotification(),
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            } else {
+                startForeground(SERVICE_NOTIFICATION_ID, createForegroundNotification())
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground error: ${e.message}")
+        }
 
         // Ensure cloud connection is active
         serviceScope.launch {

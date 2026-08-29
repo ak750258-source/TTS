@@ -43,6 +43,7 @@ import com.example.ui.components.AwardBestPerformerDialog
 import com.example.ui.components.DistributeDesignationDialog
 import com.example.ui.components.DocumentViewerDialog
 import com.example.ui.components.EditDonationRecordDialog
+import com.example.ui.components.EditMemberDialog
 import com.example.ui.components.ProfileSwitcherDialog
 import com.example.ui.components.SelfRegisterMemberDialog
 import com.example.ui.components.TTSAppHeader
@@ -69,9 +70,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Create notification channels
-        TTSNotificationHelper.createNotificationChannels(this)
-        TTSBackgroundSyncService.startService(this)
+        try {
+            // Create notification channels
+            TTSNotificationHelper.createNotificationChannels(this)
+            TTSBackgroundSyncService.startService(this)
+        } catch (e: Exception) {
+            // Safe initialization
+        }
 
         initialTargetTab = intent?.getStringExtra("TARGET_TAB")
         initialTargetChannel = intent?.getStringExtra("TARGET_CHANNEL")
@@ -169,13 +174,14 @@ fun TTSMainApp(
     var memberForDesignation by remember { mutableStateOf<Member?>(null) }
     var memberForBestPerformer by remember { mutableStateOf<Member?>(null) }
     var memberForPhotoUpdate by remember { mutableStateOf<Member?>(null) }
+    var memberForEdit by remember { mutableStateOf<Member?>(null) }
     var viewedDocument by remember { mutableStateOf<OfficialDocument?>(null) }
 
     val anyDialogVisible = showAdminLoginDialog || showProfileSwitcher || showAddMemberDialog ||
             showSelfRegisterDialog || showAddMeetingDialog || showAddNoticeDialog ||
             showAddDonationDialog || showAddDocumentDialog || donationForEdit != null ||
             memberForDesignation != null || memberForBestPerformer != null ||
-            memberForPhotoUpdate != null || viewedDocument != null
+            memberForPhotoUpdate != null || memberForEdit != null || viewedDocument != null
 
     BackHandler(enabled = anyDialogVisible || currentTab != AppTab.HOME) {
         when {
@@ -277,6 +283,7 @@ fun TTSMainApp(
                         onDistributeDesignation = { member -> memberForDesignation = member },
                         onAwardBestPerformer = { member -> memberForBestPerformer = member },
                         onUpdatePhoto = { member -> memberForPhotoUpdate = member },
+                        onEditMember = { member -> memberForEdit = member },
                         onSelectForIDCard = { member ->
                             viewModel.selectMemberForIDCard(member)
                             viewModel.setTab(AppTab.ID_CARD)
@@ -408,6 +415,23 @@ fun TTSMainApp(
             onConfirm = { newPhotoUri ->
                 viewModel.updateMemberPhoto(targetMember.id, newPhotoUri)
                 memberForPhotoUpdate = null
+            }
+        )
+    }
+
+    // Edit Member Details Dialog
+    if (memberForEdit != null) {
+        val targetMember = memberForEdit!!
+        EditMemberDialog(
+            member = targetMember,
+            onDismiss = { memberForEdit = null },
+            onConfirm = { updatedMember ->
+                viewModel.updateMember(updatedMember)
+                memberForEdit = null
+            },
+            onDelete = {
+                viewModel.deleteMember(targetMember.id, targetMember.fullName)
+                memberForEdit = null
             }
         )
     }

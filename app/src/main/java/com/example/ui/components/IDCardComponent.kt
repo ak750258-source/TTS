@@ -114,9 +114,11 @@ fun MemberIDCardView(
     ) { uri: Uri? ->
         if (uri != null && onUpdatePhoto != null) {
             coroutineScope.launch {
-                val base64 = ImageUtils.uriToBase64(context, uri)
-                onUpdatePhoto(base64 ?: uri.toString())
-                Toast.makeText(context, "फोटो सफलतापूर्वक अपडेट हो गई!", Toast.LENGTH_SHORT).show()
+                val base64 = ImageUtils.uriToBase64(context, uri, maxDimension = 140, quality = 55)
+                if (base64 != null) {
+                    onUpdatePhoto(base64)
+                    Toast.makeText(context, "फोटो सफलतापूर्वक अपडेट हो गई और सभी फोन पर सिंक हो गई!", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

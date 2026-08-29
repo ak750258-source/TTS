@@ -61,6 +61,8 @@ class FirebaseFirestoreService(context: Context? = null) {
         @Volatile
         private var INSTANCE: FirebaseFirestoreService? = null
 
+        fun getDeviceId(): String = DEVICE_ID
+
         fun getInstance(context: Context? = null): FirebaseFirestoreService {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: FirebaseFirestoreService(context?.applicationContext).also {
@@ -71,10 +73,6 @@ class FirebaseFirestoreService(context: Context? = null) {
     }
 
     private var appContext: Context? = context?.applicationContext
-
-    fun setContext(context: Context) {
-        appContext = context.applicationContext
-    }
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
@@ -117,10 +115,6 @@ class FirebaseFirestoreService(context: Context? = null) {
     // Active candidate last seen timestamp map
     private val candidateLastSeenMap = ConcurrentHashMap<Long, Long>()
 
-    // Persistent clear timestamps to prevent old messages/records from re-appearing after data clear or sync
-    private var chatClearedTimestamp: Long = 0L
-    private var dataClearedTimestamp: Long = 0L
-
     // Listeners for Repository updates
     private val memberUpsertListeners = mutableListOf<(List<Member>) -> Unit>()
     private val memberDeleteListeners = mutableListOf<(Long) -> Unit>()
@@ -139,31 +133,28 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     private val expenseUpsertListeners = mutableListOf<(List<Expense>) -> Unit>()
     private val expenseDeleteListeners = mutableListOf<(Long) -> Unit>()
+    private val memberPhotoUpdateListeners = mutableListOf<(Long, String) -> Unit>()
+    private val photoChunkBuffers = ConcurrentHashMap<String, ConcurrentHashMap<Int, String>>()
 
     private val chatListeners = ConcurrentHashMap<String, MutableList<(List<ChatMessage>) -> Unit>>()
     private val chatDeleteListeners = mutableListOf<(Long) -> Unit>()
+    private val chatSeenListeners = mutableListOf<(Long, String) -> Unit>()
+    private val chatClearListeners = mutableListOf<() -> Unit>()
     private val syncRequestListeners = mutableListOf<() -> Unit>()
     private val clearAllListeners = mutableListOf<() -> Unit>()
-    private val clearChatListeners = mutableListOf<() -> Unit>()
-    private val clearDonationListeners = mutableListOf<() -> Unit>()
-    private val clearExpenseListeners = mutableListOf<() -> Unit>()
-    private val clearNoticeListeners = mutableListOf<() -> Unit>()
-    private val clearMeetingListeners = mutableListOf<() -> Unit>()
-    private val clearDocumentListeners = mutableListOf<() -> Unit>()
-    private val clearMemberListeners = mutableListOf<() -> Unit>()
 
     private var currentActiveMemberId: Long = 0L
     private var currentActiveMemberName: String = ""
 
+    // Timestamps to prevent re-populating deleted/cleared records on sync catchup
+    @Volatile
+    private var lastChatClearedTimestamp: Long = 0L
+    @Volatile
+    private var lastDataClearedTimestamp: Long = 0L
+
     init {
-        appContext?.let { ctx ->
-            try {
-                val sp = ctx.getSharedPreferences("tts_cloud_sync_prefs", Context.MODE_PRIVATE)
-                chatClearedTimestamp = sp.getLong("chat_cleared_ts", 0L)
-                dataClearedTimestamp = sp.getLong("data_cleared_ts", 0L)
-            } catch (_: Exception) {}
-        }
         Log.d(TAG, "Initializing Real-Time Cloud Sync Engine with Device ID: $DEVICE_ID")
+        loadClearedTimestamps()
         startSseEventListener()
         startCatchupPoll()
         startPeriodicSyncHeartbeat()
@@ -171,33 +162,53 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     fun setContext(context: Context) {
         appContext = context.applicationContext
-        try {
-            val sp = context.applicationContext.getSharedPreferences("tts_cloud_sync_prefs", Context.MODE_PRIVATE)
-            chatClearedTimestamp = maxOf(chatClearedTimestamp, sp.getLong("chat_cleared_ts", 0L))
-            dataClearedTimestamp = maxOf(dataClearedTimestamp, sp.getLong("data_cleared_ts", 0L))
-        } catch (_: Exception) {}
+        loadClearedTimestamps()
     }
 
-    fun recordChatCleared(timestamp: Long = System.currentTimeMillis()) {
-        chatClearedTimestamp = maxOf(chatClearedTimestamp, timestamp)
+    private fun loadClearedTimestamps() {
         try {
-            appContext?.getSharedPreferences("tts_cloud_sync_prefs", Context.MODE_PRIVATE)
-                ?.edit()
-                ?.putLong("chat_cleared_ts", chatClearedTimestamp)
-                ?.apply()
-        } catch (_: Exception) {}
+            appContext?.let { ctx ->
+                val sp = ctx.getSharedPreferences("tts_sync_prefs", Context.MODE_PRIVATE)
+                val chatTs = sp.getLong("last_chat_cleared_ts", 0L)
+                val dataTs = sp.getLong("last_data_cleared_ts", 0L)
+                if (chatTs > lastChatClearedTimestamp) lastChatClearedTimestamp = chatTs
+                if (dataTs > lastDataClearedTimestamp) lastDataClearedTimestamp = dataTs
+            }
+        } catch (e: Exception) {
+            Log.v(TAG, "loadClearedTimestamps note: ${e.message}")
+        }
     }
 
-    fun recordDataCleared(timestamp: Long = System.currentTimeMillis()) {
-        dataClearedTimestamp = maxOf(dataClearedTimestamp, timestamp)
-        chatClearedTimestamp = maxOf(chatClearedTimestamp, timestamp)
+    private fun saveChatClearedTimestamp(ts: Long) {
+        if (ts <= 0L) return
+        lastChatClearedTimestamp = maxOf(lastChatClearedTimestamp, ts)
         try {
-            appContext?.getSharedPreferences("tts_cloud_sync_prefs", Context.MODE_PRIVATE)
-                ?.edit()
-                ?.putLong("data_cleared_ts", dataClearedTimestamp)
-                ?.putLong("chat_cleared_ts", chatClearedTimestamp)
-                ?.apply()
-        } catch (_: Exception) {}
+            appContext?.let { ctx ->
+                ctx.getSharedPreferences("tts_sync_prefs", Context.MODE_PRIVATE)
+                    .edit()
+                    .putLong("last_chat_cleared_ts", lastChatClearedTimestamp)
+                    .apply()
+            }
+        } catch (e: Exception) {
+            Log.v(TAG, "saveChatClearedTimestamp note: ${e.message}")
+        }
+    }
+
+    private fun saveDataClearedTimestamp(ts: Long) {
+        if (ts <= 0L) return
+        lastDataClearedTimestamp = maxOf(lastDataClearedTimestamp, ts)
+        lastChatClearedTimestamp = maxOf(lastChatClearedTimestamp, ts)
+        try {
+            appContext?.let { ctx ->
+                ctx.getSharedPreferences("tts_sync_prefs", Context.MODE_PRIVATE)
+                    .edit()
+                    .putLong("last_data_cleared_ts", lastDataClearedTimestamp)
+                    .putLong("last_chat_cleared_ts", lastChatClearedTimestamp)
+                    .apply()
+            }
+        } catch (e: Exception) {
+            Log.v(TAG, "saveDataClearedTimestamp note: ${e.message}")
+        }
     }
 
     // --- REAL-TIME SSE STREAMING CONNECTION ---
@@ -346,11 +357,25 @@ class FirebaseFirestoreService(context: Context? = null) {
                 _onlineCandidateIds.value = candidateLastSeenMap.keys().toList().toSet()
             }
 
+            val eventTimestamp = root.optLong("timestamp", 0L)
+
+            // 1. Ignore events that occurred before total data wipe timestamp
+            if (lastDataClearedTimestamp > 0L && eventTimestamp in 1..lastDataClearedTimestamp && eventType != "CLEAR_ALL_DATA") {
+                Log.d(TAG, "Skipping pre-clear data event ($eventType, timestamp=$eventTimestamp <= $lastDataClearedTimestamp)")
+                return
+            }
+
             when (eventType) {
                 "CHAT_MESSAGE" -> {
                     if (payload != null) {
                         val msg = parseChatMessage(payload)
-                        if (msg != null && msg.timestamp > chatClearedTimestamp) {
+                        if (msg != null) {
+                            // Discard message if it was sent prior to chat clear
+                            if (lastChatClearedTimestamp > 0L && msg.timestamp <= lastChatClearedTimestamp) {
+                                Log.d(TAG, "Skipping pre-clear chat message (${msg.id}, timestamp=${msg.timestamp} <= $lastChatClearedTimestamp)")
+                                return
+                            }
+
                             // Notify all-channel global listeners
                             chatListeners["all"]?.let { allList ->
                                 synchronized(allList) {
@@ -365,8 +390,23 @@ class FirebaseFirestoreService(context: Context? = null) {
                                 }
                             }
 
-                            // Trigger phone notification if message came from another device / candidate
+                            // Immediately emit read receipt / seen acknowledgment back to sender for double tick
                             if (isFromAnotherDevice || (currentActiveMemberId > 0 && senderMemberId != currentActiveMemberId)) {
+                                serviceScope.launch {
+                                    try {
+                                        val seenPayload = JSONObject().apply {
+                                            put("messageId", msg.id)
+                                            put("channelId", msg.channelId)
+                                            put("seenByDeviceId", DEVICE_ID)
+                                            put("seenByMemberId", currentActiveMemberId)
+                                            put("timestamp", System.currentTimeMillis())
+                                        }
+                                        broadcastEvent("CHAT_SEEN", seenPayload)
+                                    } catch (e: Exception) {
+                                        Log.v(TAG, "SEEN broadcast note: ${e.message}")
+                                    }
+                                }
+
                                 appContext?.let { ctx ->
                                     TTSNotificationHelper.showChatNotification(
                                         context = ctx,
@@ -379,12 +419,55 @@ class FirebaseFirestoreService(context: Context? = null) {
                         }
                     }
                 }
+                "CHAT_SEEN" -> {
+                    val messageId = payload?.optLong("messageId", 0L) ?: 0L
+                    val channelId = payload?.optString("channelId", "general") ?: "general"
+                    if (messageId > 0) {
+                        synchronized(chatSeenListeners) {
+                            chatSeenListeners.forEach { it(messageId, channelId) }
+                        }
+                    }
+                }
                 "MEMBER_UPSERT" -> {
                     if (payload != null) {
                         val member = parseMember(payload)
                         if (member != null) {
                             synchronized(memberUpsertListeners) {
                                 memberUpsertListeners.forEach { it(listOf(member)) }
+                            }
+                        }
+                    }
+                }
+                "MEMBER_PHOTO_UPDATE" -> {
+                    if (payload != null) {
+                        val memberId = payload.optLong("memberId", 0L)
+                        val totalChunks = payload.optInt("totalChunks", 1)
+                        val chunkIndex = payload.optInt("chunkIndex", 0)
+                        val chunkData = payload.optString("chunkData", "")
+                        val directPhotoUri = payload.optString("photoUri", "")
+                        val transferId = payload.optString("transferId", "photo_$memberId")
+
+                        if (memberId > 0) {
+                            if (totalChunks <= 1 && directPhotoUri.isNotBlank()) {
+                                synchronized(memberPhotoUpdateListeners) {
+                                    memberPhotoUpdateListeners.forEach { it(memberId, directPhotoUri) }
+                                }
+                            } else if (chunkData.isNotBlank()) {
+                                val buffer = photoChunkBuffers.getOrPut(transferId) { ConcurrentHashMap() }
+                                buffer[chunkIndex] = chunkData
+                                if (buffer.size >= totalChunks) {
+                                    val fullPhotoBuilder = StringBuilder()
+                                    for (i in 0 until totalChunks) {
+                                        buffer[i]?.let { fullPhotoBuilder.append(it) }
+                                    }
+                                    val fullPhotoUri = fullPhotoBuilder.toString()
+                                    photoChunkBuffers.remove(transferId)
+                                    if (fullPhotoUri.isNotBlank()) {
+                                        synchronized(memberPhotoUpdateListeners) {
+                                            memberPhotoUpdateListeners.forEach { it(memberId, fullPhotoUri) }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -552,45 +635,15 @@ class FirebaseFirestoreService(context: Context? = null) {
                     }
                 }
                 "CLEAR_CHAT" -> {
-                    val clearedAt = payload?.optLong("clearedAt") ?: root.optLong("timestamp", System.currentTimeMillis())
-                    recordChatCleared(clearedAt)
-                    synchronized(clearChatListeners) {
-                        clearChatListeners.forEach { it() }
-                    }
-                }
-                "CLEAR_MEMBERS" -> {
-                    synchronized(clearMemberListeners) {
-                        clearMemberListeners.forEach { it() }
-                    }
-                }
-                "CLEAR_MEETINGS" -> {
-                    synchronized(clearMeetingListeners) {
-                        clearMeetingListeners.forEach { it() }
-                    }
-                }
-                "CLEAR_NOTICES" -> {
-                    synchronized(clearNoticeListeners) {
-                        clearNoticeListeners.forEach { it() }
-                    }
-                }
-                "CLEAR_DOCUMENTS" -> {
-                    synchronized(clearDocumentListeners) {
-                        clearDocumentListeners.forEach { it() }
-                    }
-                }
-                "CLEAR_DONATIONS" -> {
-                    synchronized(clearDonationListeners) {
-                        clearDonationListeners.forEach { it() }
-                    }
-                }
-                "CLEAR_EXPENSES" -> {
-                    synchronized(clearExpenseListeners) {
-                        clearExpenseListeners.forEach { it() }
+                    val ts = payload?.optLong("clearedTimestamp", 0L).let { if (it != null && it > 0) it else eventTimestamp.let { et -> if (et > 0) et else System.currentTimeMillis() } }
+                    saveChatClearedTimestamp(ts)
+                    synchronized(chatClearListeners) {
+                        chatClearListeners.forEach { it() }
                     }
                 }
                 "CLEAR_ALL_DATA" -> {
-                    val clearedAt = payload?.optLong("clearedAt") ?: root.optLong("timestamp", System.currentTimeMillis())
-                    recordDataCleared(clearedAt)
+                    val ts = if (eventTimestamp > 0) eventTimestamp else System.currentTimeMillis()
+                    saveDataClearedTimestamp(ts)
                     synchronized(clearAllListeners) {
                         clearAllListeners.forEach { it() }
                     }
@@ -621,61 +674,55 @@ class FirebaseFirestoreService(context: Context? = null) {
                     }
                 }
 
-                // 1. Standard ntfy JSON publishing format
-                val ntfyPayload = JSONObject().apply {
-                    put("topic", SYNC_TOPIC)
-                    put("title", "TTS_SYNC_$eventType")
-                    put("message", envelope.toString())
-                    put("priority", 4)
-                }
-
-                val request = Request.Builder()
-                    .url("https://ntfy.sh")
-                    .post(ntfyPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                // 1. Direct high-priority post to topic endpoint for ultra-fast instant delivery
+                val directRequest = Request.Builder()
+                    .url(BASE_URL)
+                    .header("Title", "TTS_SYNC_$eventType")
+                    .header("Priority", "5")
+                    .header("X-Priority", "5")
+                    .post(envelope.toString().toRequestBody("text/plain; charset=utf-8".toMediaType()))
                     .build()
 
                 var success = false
                 var attempts = 0
-                while (!success && attempts < 3) {
+                while (!success && attempts < 2) {
                     attempts++
                     try {
-                        httpClient.newCall(request).execute().use { response ->
+                        httpClient.newCall(directRequest).execute().use { response ->
                             if (response.isSuccessful) {
                                 success = true
                                 _isCloudConnected.value = true
                                 _syncStatus.value = "🟢 लाइव क्लाउड सिंक कनेक्टेड"
-                                Log.d(TAG, "Cloud broadcast success: $eventType (attempt $attempts)")
-                            } else {
-                                Log.w(TAG, "Cloud broadcast warning code: ${response.code} for $eventType")
+                                Log.d(TAG, "Fast cloud broadcast success: $eventType")
                             }
                         }
                     } catch (netEx: Exception) {
-                        if (attempts >= 3) {
-                            Log.w(TAG, "Cloud broadcast retry note: ${netEx.message}")
-                        } else {
-                            delay(400)
-                        }
+                        Log.v(TAG, "Direct broadcast retry note: ${netEx.message}")
                     }
                 }
 
-                // 2. Direct plain text fallback to topic URL if needed
+                // 2. Standard ntfy JSON publishing fallback if needed
                 if (!success) {
+                    val ntfyPayload = JSONObject().apply {
+                        put("topic", SYNC_TOPIC)
+                        put("title", "TTS_SYNC_$eventType")
+                        put("message", envelope.toString())
+                        put("priority", 5)
+                    }
+
+                    val jsonRequest = Request.Builder()
+                        .url("https://ntfy.sh")
+                        .post(ntfyPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                        .build()
+
                     try {
-                        val fallbackRequest = Request.Builder()
-                            .url(BASE_URL)
-                            .header("Title", "TTS_SYNC_$eventType")
-                            .header("Priority", "high")
-                            .post(envelope.toString().toRequestBody("text/plain; charset=utf-8".toMediaType()))
-                            .build()
-                        httpClient.newCall(fallbackRequest).execute().use { resp ->
-                            if (resp.isSuccessful) {
+                        httpClient.newCall(jsonRequest).execute().use { response ->
+                            if (response.isSuccessful) {
+                                success = true
                                 _isCloudConnected.value = true
-                                Log.d(TAG, "Fallback plain text broadcast succeeded for $eventType")
                             }
                         }
-                    } catch (fbEx: Exception) {
-                        Log.w(TAG, "Fallback broadcast note: ${fbEx.message}")
-                    }
+                    } catch (_: Exception) {}
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Network broadcast exception: ${e.message}")
@@ -766,9 +813,21 @@ class FirebaseFirestoreService(context: Context? = null) {
         return null
     }
 
+    fun listenToChatSeen(onChatSeen: (Long, String) -> Unit) {
+        synchronized(chatSeenListeners) {
+            chatSeenListeners.add(onChatSeen)
+        }
+    }
+
     fun listenToChatDelete(onMessageDeleted: (Long) -> Unit) {
         synchronized(chatDeleteListeners) {
             chatDeleteListeners.add(onMessageDeleted)
+        }
+    }
+
+    fun listenToChatClear(onChatCleared: () -> Unit) {
+        synchronized(chatClearListeners) {
+            chatClearListeners.add(onChatCleared)
         }
     }
 
@@ -788,52 +847,73 @@ class FirebaseFirestoreService(context: Context? = null) {
         }
     }
 
-    fun listenToClearChat(onClearChat: () -> Unit) {
-        synchronized(clearChatListeners) {
-            clearChatListeners.add(onClearChat)
+    fun listenToMemberPhotoUpdates(onPhotoUpdated: (Long, String) -> Unit) {
+        synchronized(memberPhotoUpdateListeners) {
+            memberPhotoUpdateListeners.add(onPhotoUpdated)
         }
     }
 
-    fun listenToClearMembers(onClearMembers: () -> Unit) {
-        synchronized(clearMemberListeners) {
-            clearMemberListeners.add(onClearMembers)
-        }
-    }
+    suspend fun syncMemberPhotoToCloud(memberId: Long, photoUri: String?) {
+        withContext(Dispatchers.IO) {
+            try {
+                if (photoUri.isNullOrBlank()) {
+                    val json = JSONObject().apply {
+                        put("memberId", memberId)
+                        put("totalChunks", 1)
+                        put("chunkIndex", 0)
+                        put("photoUri", "")
+                    }
+                    broadcastEvent("MEMBER_PHOTO_UPDATE", json)
+                    return@withContext
+                }
 
-    fun listenToClearMeetings(onClearMeetings: () -> Unit) {
-        synchronized(clearMeetingListeners) {
-            clearMeetingListeners.add(onClearMeetings)
-        }
-    }
+                val cleaned = photoUri.trim()
+                if (cleaned.length <= 2500) {
+                    val json = JSONObject().apply {
+                        put("memberId", memberId)
+                        put("totalChunks", 1)
+                        put("chunkIndex", 0)
+                        put("photoUri", cleaned)
+                    }
+                    broadcastEvent("MEMBER_PHOTO_UPDATE", json)
+                } else {
+                    val chunkSize = 2000
+                    val totalChunks = (cleaned.length + chunkSize - 1) / chunkSize
+                    val transferId = "photo_${memberId}_${System.currentTimeMillis()}"
 
-    fun listenToClearNotices(onClearNotices: () -> Unit) {
-        synchronized(clearNoticeListeners) {
-            clearNoticeListeners.add(onClearNotices)
-        }
-    }
+                    for (i in 0 until totalChunks) {
+                        val start = i * chunkSize
+                        val end = kotlin.math.min(cleaned.length, start + chunkSize)
+                        val chunk = cleaned.substring(start, end)
 
-    fun listenToClearDocuments(onClearDocuments: () -> Unit) {
-        synchronized(clearDocumentListeners) {
-            clearDocumentListeners.add(onClearDocuments)
-        }
-    }
-
-    fun listenToClearDonations(onClearDonations: () -> Unit) {
-        synchronized(clearDonationListeners) {
-            clearDonationListeners.add(onClearDonations)
-        }
-    }
-
-    fun listenToClearExpenses(onClearExpenses: () -> Unit) {
-        synchronized(clearExpenseListeners) {
-            clearExpenseListeners.add(onClearExpenses)
+                        val json = JSONObject().apply {
+                            put("memberId", memberId)
+                            put("transferId", transferId)
+                            put("totalChunks", totalChunks)
+                            put("chunkIndex", i)
+                            put("chunkData", chunk)
+                        }
+                        broadcastEvent("MEMBER_PHOTO_UPDATE", json)
+                        if (totalChunks > 1) {
+                            delay(60)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "syncMemberPhotoToCloud error: ${e.message}")
+            }
         }
     }
 
     // --- SYNC ACTIONS TO CLOUD ---
     suspend fun syncMemberToCloud(member: Member) {
         withContext(Dispatchers.IO) {
-            val photoForCloud = member.photoUri ?: ""
+            // Keep photoUri within safe SSE envelope size (up to 2.5KB directly in upsert)
+            val photoForCloud = if (member.photoUri != null && member.photoUri.length <= 2500) {
+                member.photoUri
+            } else {
+                ""
+            }
 
             val json = JSONObject().apply {
                 put("id", member.id)
@@ -855,6 +935,11 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("photoUri", photoForCloud)
             }
             broadcastEvent("MEMBER_UPSERT", json)
+
+            // If photo was too large for single MEMBER_UPSERT, sync it via chunked channel
+            if (!member.photoUri.isNullOrBlank() && member.photoUri.length > 2500) {
+                syncMemberPhotoToCloud(member.id, member.photoUri)
+            }
         }
     }
 
@@ -1012,9 +1097,7 @@ class FirebaseFirestoreService(context: Context? = null) {
     }
 
     suspend fun clearAllExpensesFromCloud() {
-        val now = System.currentTimeMillis()
-        val json = JSONObject().apply { put("clearedAt", now) }
-        broadcastEvent("CLEAR_EXPENSES", json)
+        broadcastEvent("CLEAR_EXPENSES", null)
     }
 
     suspend fun syncChatMessageToCloud(message: ChatMessage) {
@@ -1029,8 +1112,25 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("timestamp", message.timestamp)
                 put("timeDisplay", message.timeDisplay)
                 put("isAnnouncement", message.isAnnouncement)
+                put("senderMemberId", message.senderMemberId)
+                put("senderDeviceId", message.senderDeviceId.ifBlank { DEVICE_ID })
+                put("status", message.status)
+                put("isSeen", message.isSeen)
             }
             broadcastEvent("CHAT_MESSAGE", json)
+        }
+    }
+
+    suspend fun broadcastChatSeen(messageId: Long, channelId: String = "general") {
+        withContext(Dispatchers.IO) {
+            val json = JSONObject().apply {
+                put("messageId", messageId)
+                put("channelId", channelId)
+                put("seenByDeviceId", DEVICE_ID)
+                put("seenByMemberId", currentActiveMemberId)
+                put("timestamp", System.currentTimeMillis())
+            }
+            broadcastEvent("CHAT_SEEN", json)
         }
     }
 
@@ -1046,45 +1146,39 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     suspend fun clearAllChatFromCloud() {
         val now = System.currentTimeMillis()
-        recordChatCleared(now)
-        val json = JSONObject().apply { put("clearedAt", now) }
+        saveChatClearedTimestamp(now)
+        val json = JSONObject().apply {
+            put("clearedTimestamp", now)
+        }
         broadcastEvent("CLEAR_CHAT", json)
     }
 
     suspend fun clearAllMembersFromCloud() {
-        val now = System.currentTimeMillis()
-        val json = JSONObject().apply { put("clearedAt", now) }
-        broadcastEvent("CLEAR_MEMBERS", json)
+        broadcastEvent("CLEAR_MEMBERS", null)
     }
 
     suspend fun clearAllMeetingsFromCloud() {
-        val now = System.currentTimeMillis()
-        val json = JSONObject().apply { put("clearedAt", now) }
-        broadcastEvent("CLEAR_MEETINGS", json)
+        broadcastEvent("CLEAR_MEETINGS", null)
     }
 
     suspend fun clearAllNoticesFromCloud() {
-        val now = System.currentTimeMillis()
-        val json = JSONObject().apply { put("clearedAt", now) }
-        broadcastEvent("CLEAR_NOTICES", json)
+        broadcastEvent("CLEAR_NOTICES", null)
     }
 
     suspend fun clearAllDocumentsFromCloud() {
-        val now = System.currentTimeMillis()
-        val json = JSONObject().apply { put("clearedAt", now) }
-        broadcastEvent("CLEAR_DOCUMENTS", json)
+        broadcastEvent("CLEAR_DOCUMENTS", null)
     }
 
     suspend fun clearAllDonationsFromCloud() {
-        val now = System.currentTimeMillis()
-        val json = JSONObject().apply { put("clearedAt", now) }
-        broadcastEvent("CLEAR_DONATIONS", json)
+        broadcastEvent("CLEAR_DONATIONS", null)
     }
 
     suspend fun clearAllAppCloudData() {
         val now = System.currentTimeMillis()
-        recordDataCleared(now)
-        val json = JSONObject().apply { put("clearedAt", now) }
+        saveDataClearedTimestamp(now)
+        val json = JSONObject().apply {
+            put("clearedTimestamp", now)
+        }
         broadcastEvent("CLEAR_ALL_DATA", json)
     }
 
@@ -1104,7 +1198,11 @@ class FirebaseFirestoreService(context: Context? = null) {
                 messageText = obj.optString("messageText", ""),
                 timestamp = timestamp,
                 timeDisplay = timeDisplay,
-                isAnnouncement = obj.optBoolean("isAnnouncement", false)
+                isAnnouncement = obj.optBoolean("isAnnouncement", false),
+                senderMemberId = obj.optLong("senderMemberId", 0L),
+                senderDeviceId = obj.optString("senderDeviceId", ""),
+                status = obj.optString("status", "SENT"),
+                isSeen = obj.optBoolean("isSeen", false)
             )
         } catch (e: Exception) {
             null

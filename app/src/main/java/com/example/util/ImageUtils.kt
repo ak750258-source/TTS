@@ -27,14 +27,14 @@ object ImageUtils {
 
     /**
      * Converts an image Uri (from Gallery / Camera) to an optimized, compressed Base64 Data URI string.
-     * Dimensions are scaled to 240x240 px at quality 70% (~5-8KB), which guarantees instant rendering,
+     * Dimensions are scaled to 180x180 px at quality 65% (~3-5KB), which guarantees instant rendering,
      * low memory footprint, and reliable transmission over real-time cloud sync to all devices.
      */
     suspend fun uriToBase64(
         context: Context,
         uri: Uri,
-        maxDimension: Int = 240,
-        quality: Int = 70
+        maxDimension: Int = 140,
+        quality: Int = 55
     ): String? = withContext(Dispatchers.IO) {
         try {
             val contentResolver = context.contentResolver

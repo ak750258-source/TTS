@@ -421,7 +421,7 @@ fun MemberRosterCard(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Profile Photo / Avatar with online indicator and click to update
+                    // Profile Photo / Avatar with online indicator and click to edit/update
                     Box(
                         modifier = Modifier
                             .size(54.dp)
@@ -495,18 +495,38 @@ fun MemberRosterCard(
                     }
                 }
 
-                // Call Action Icon
-                IconButton(
-                    onClick = {
-                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${member.phoneNumber}"))
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(SoftMintContainer)
-                ) {
-                    Icon(Icons.Default.Call, contentDescription = "Call", tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Edit Member Button
+                    IconButton(
+                        onClick = {
+                            if (isAdminLoggedIn) {
+                                onEditMember()
+                            } else {
+                                onOpenAdminLogin()
+                            }
+                        },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(SoftMintContainer)
+                            .testTag("edit_member_btn_${member.id}")
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Member", tint = PrimaryGreen, modifier = Modifier.size(17.dp))
+                    }
+
+                    // Call Action Icon
+                    IconButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${member.phoneNumber}"))
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(SoftMintContainer)
+                    ) {
+                        Icon(Icons.Default.Call, contentDescription = "Call", tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
 
@@ -560,30 +580,17 @@ fun MemberRosterCard(
                 OutlinedButton(
                     onClick = onSelectForIDCard,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryGreen),
-                    modifier = Modifier.weight(1.1f).testTag("view_id_card_${member.id}")
+                    modifier = Modifier.weight(1f).testTag("view_id_card_${member.id}")
                 ) {
                     Icon(Icons.Default.Badge, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("ID कार्ड", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("ID कार्ड देखें", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
 
-                Spacer(modifier = Modifier.width(4.dp))
-
-                // Edit Profile Details Button
-                OutlinedButton(
-                    onClick = onEditMember,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepForestGreen),
-                    modifier = Modifier.weight(1.1f).testTag("edit_member_${member.id}")
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = PrimaryGreen)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("एडिट", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Admin: Distribute Designation Button
-                IconButton(
+                OutlinedButton(
                     onClick = {
                         if (isAdminLoggedIn) {
                             onDistributeDesignation()
@@ -591,16 +598,14 @@ fun MemberRosterCard(
                             onOpenAdminLogin()
                         }
                     },
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(LightSageCard)
-                        .testTag("distribute_desig_${member.id}")
+                    modifier = Modifier.weight(1f).testTag("distribute_desig_${member.id}")
                 ) {
-                    Icon(Icons.Default.Work, contentDescription = "पद सौंपें", tint = GoldText, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Work, contentDescription = null, tint = GoldText, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("पद सौंपें", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DeepForestGreen)
                 }
 
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Admin: Award Best Performer
                 IconButton(

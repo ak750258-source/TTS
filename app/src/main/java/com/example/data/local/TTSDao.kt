@@ -189,9 +189,12 @@ interface TTSDao {
     @Query("DELETE FROM chat_messages WHERE id = :id")
     suspend fun deleteChatMessage(id: Long)
 
+    @Query("UPDATE chat_messages SET isSeen = 1, status = 'SEEN' WHERE id = :id")
+    suspend fun markMessageSeen(id: Long)
+
+    @Query("UPDATE chat_messages SET isSeen = 1, status = 'SEEN' WHERE id IN (:ids)")
+    suspend fun markMessagesSeen(ids: List<Long>)
+
     @Query("DELETE FROM chat_messages")
     suspend fun clearAllChatMessages()
-
-    @Query("DELETE FROM chat_messages WHERE timestamp <= :timestamp")
-    suspend fun clearChatMessagesOlderThan(timestamp: Long)
 }

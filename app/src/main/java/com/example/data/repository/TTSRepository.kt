@@ -56,7 +56,15 @@ class TTSRepository(
             onMembersUpdated = { cloudMembers ->
                 if (cloudMembers.isNotEmpty()) {
                     repositoryScope.launch {
-                        ttsDao.insertMembers(cloudMembers)
+                        for (cm in cloudMembers) {
+                            val existing = ttsDao.getMemberById(cm.id)
+                            if (existing != null) {
+                                val finalPhoto = if (!cm.photoUri.isNullOrBlank()) cm.photoUri else existing.photoUri
+                                ttsDao.updateMember(cm.copy(photoUri = finalPhoto))
+                            } else {
+                                ttsDao.insertMember(cm)
+                            }
+                        }
                     }
                 }
             },
@@ -66,6 +74,13 @@ class TTSRepository(
                 }
             }
         )
+
+        // Sync Member Photo Updates from Cloud
+        firestoreService.listenToMemberPhotoUpdates { memberId, newPhotoUri ->
+            repositoryScope.launch {
+                ttsDao.updateMemberPhoto(memberId, newPhotoUri.takeIf { it.isNotBlank() })
+            }
+        }
 
         // Sync Donations from Cloud
         firestoreService.listenToDonations(
@@ -165,6 +180,20 @@ class TTSRepository(
             }
         }
 
+        // Real-time Chat message SEEN (Double Tick) across devices
+        firestoreService.listenToChatSeen { messageId, _ ->
+            repositoryScope.launch {
+                ttsDao.markMessageSeen(messageId)
+            }
+        }
+
+        // Real-time Chat clear across all devices
+        firestoreService.listenToChatClear {
+            repositoryScope.launch {
+                ttsDao.clearAllChatMessages()
+            }
+        }
+
         // Listen for sync request from any newly joined device and sync all database records
         firestoreService.listenToSyncRequest {
             repositoryScope.launch {
@@ -205,53 +234,10 @@ class TTSRepository(
             repositoryScope.launch {
                 ttsDao.clearAllChatMessages()
                 ttsDao.clearAllDonations()
+                ttsDao.clearAllExpenses()
                 ttsDao.clearAllNotices()
                 ttsDao.clearAllMeetings()
                 ttsDao.clearAllDocuments()
-                ttsDao.clearAllMembers()
-                ttsDao.clearAllExpenses()
-            }
-        }
-
-        // Specific section clear listeners
-        firestoreService.listenToClearChat {
-            repositoryScope.launch {
-                ttsDao.clearAllChatMessages()
-            }
-        }
-
-        firestoreService.listenToClearDonations {
-            repositoryScope.launch {
-                ttsDao.clearAllDonations()
-            }
-        }
-
-        firestoreService.listenToClearExpenses {
-            repositoryScope.launch {
-                ttsDao.clearAllExpenses()
-            }
-        }
-
-        firestoreService.listenToClearNotices {
-            repositoryScope.launch {
-                ttsDao.clearAllNotices()
-            }
-        }
-
-        firestoreService.listenToClearMeetings {
-            repositoryScope.launch {
-                ttsDao.clearAllMeetings()
-            }
-        }
-
-        firestoreService.listenToClearDocuments {
-            repositoryScope.launch {
-                ttsDao.clearAllDocuments()
-            }
-        }
-
-        firestoreService.listenToClearMembers {
-            repositoryScope.launch {
                 ttsDao.clearAllMembers()
             }
         }
@@ -300,6 +286,7 @@ class TTSRepository(
 
     suspend fun updateMemberPhoto(id: Long, photoUri: String?) {
         ttsDao.updateMemberPhoto(id, photoUri)
+        firestoreService.syncMemberPhotoToCloud(id, photoUri)
         ttsDao.getMemberById(id)?.let { updated ->
             firestoreService.syncMemberToCloud(updated)
         }
@@ -439,6 +426,11 @@ class TTSRepository(
         val saved = message.copy(id = id)
         firestoreService.syncChatMessageToCloud(saved)
         return id
+    }
+
+    suspend fun markChatMessageSeen(id: Long, channelId: String = "general") {
+        ttsDao.markMessageSeen(id)
+        firestoreService.broadcastChatSeen(id, channelId)
     }
 
     suspend fun deleteChatMessage(id: Long, channelId: String = "general") {

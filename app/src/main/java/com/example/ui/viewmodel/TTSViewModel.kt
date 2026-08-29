@@ -1,8 +1,10 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.firebase.FirebaseFirestoreService
 import com.example.data.local.TTSDatabase
 import com.example.data.model.ChatMessage
 import com.example.data.model.Donation
@@ -38,12 +40,9 @@ enum class AppTab(val titleHindi: String, val titleEnglish: String, val route: S
 
 class TTSViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: TTSRepository
-
-    init {
-        val database = TTSDatabase.getDatabase(application, viewModelScope)
-        repository = TTSRepository(database.ttsDao())
-    }
+    private val repository: TTSRepository = TTSRepository(
+        TTSDatabase.getDatabase(application, viewModelScope).ttsDao()
+    )
 
     // Firebase Firestore Live Cloud Sync Status
     val isCloudConnected: StateFlow<Boolean> = repository.isCloudConnected
@@ -686,6 +685,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
             val senderName = sender?.fullName ?: "कमेटी खादिम"
             val senderRole = sender?.designation ?: "सदस्य"
             val avatarIdx = sender?.avatarColorIndex ?: 0
+            val senderMemberId = sender?.id ?: 0L
 
             val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
             val chatMsg = ChatMessage(
@@ -697,9 +697,19 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 messageText = messageText.trim(),
                 timestamp = System.currentTimeMillis(),
                 timeDisplay = timeFormat.format(Date()),
-                isAnnouncement = _isAdminLoggedIn.value
+                isAnnouncement = _isAdminLoggedIn.value,
+                senderMemberId = senderMemberId,
+                senderDeviceId = FirebaseFirestoreService.getDeviceId(),
+                status = "SENT",
+                isSeen = false
             )
             repository.sendChatMessage(chatMsg)
+        }
+    }
+
+    fun markChatMessageSeen(messageId: Long, channelId: String = _selectedChatChannel.value) {
+        viewModelScope.launch {
+            repository.markChatMessageSeen(messageId, channelId)
         }
     }
 
@@ -722,6 +732,8 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.clearAllApplicationData()
             _currentActiveMember.value = null
+            val prefs = getApplication<Application>().getSharedPreferences("tts_device_prefs", Context.MODE_PRIVATE)
+            prefs.edit().clear().apply()
             showSnackbar("संपूर्ण एप्लिकेशन डेटा (लोकल एवं क्लाउड) पूर्णतः साफ़ कर दिया गया!")
         }
     }
@@ -749,9 +761,44 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setActiveMember(member: Member?) {
         _currentActiveMember.value = member
+        val prefs = getApplication<Application>().getSharedPreferences("tts_device_prefs", Context.MODE_PRIVATE)
         if (member != null) {
+            prefs.edit().putLong("my_locked_member_id", member.id).apply()
             viewModelScope.launch {
                 repository.updateCandidatePresence(member.id, member.fullName, true)
+            }
+        } else {
+            prefs.edit().remove("my_locked_member_id").apply()
+        }
+    }
+
+    fun lockDeviceProfile(member: Member) {
+        setActiveMember(member)
+        showSnackbar("🔒 आपकी स्थायी प्रोफ़ाइल '${member.fullName}' (${member.designation}) के रूप में इस डिवाइस पर सेट हो गई है।")
+    }
+
+    init {
+        // Automatically load and lock the saved profile for this device
+        viewModelScope.launch {
+            try {
+                val prefs = getApplication<Application>().getSharedPreferences("tts_device_prefs", Context.MODE_PRIVATE)
+                val savedMemberId = prefs.getLong("my_locked_member_id", -1L)
+                members.collect { memberList ->
+                    if (savedMemberId > 0 && _currentActiveMember.value == null) {
+                        val found = memberList.find { it.id == savedMemberId }
+                        if (found != null) {
+                            _currentActiveMember.value = found
+                            repository.updateCandidatePresence(found.id, found.fullName, true)
+                        }
+                    } else if (_currentActiveMember.value != null) {
+                        val updated = memberList.find { it.id == _currentActiveMember.value?.id }
+                        if (updated != null) {
+                            _currentActiveMember.value = updated
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Graceful fallback
             }
         }
     }

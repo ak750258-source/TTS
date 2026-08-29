@@ -12,13 +12,17 @@ class TTSApplication : Application() {
         super.onCreate()
         Log.d("TTSApplication", "Application started - Initializing 24/7 Live Cloud Push Engine")
 
-        // 1. Create Notification Channels for Chanda, Chat & Notices
-        TTSNotificationHelper.createNotificationChannels(this)
+        try {
+            // 1. Create Notification Channels for Chanda, Chat & Notices
+            TTSNotificationHelper.createNotificationChannels(this)
 
-        // 2. Initialize Real-Time Cloud Service with Context
-        FirebaseFirestoreService.getInstance(this).setContext(this)
+            // 2. Initialize Real-Time Cloud Service with Context
+            FirebaseFirestoreService.getInstance(this).setContext(this)
 
-        // 3. Start Background Sync Service for Real-time push notifications across all devices
-        TTSBackgroundSyncService.startService(this)
+            // 3. Start Background Sync Service safely
+            TTSBackgroundSyncService.startService(this)
+        } catch (e: Exception) {
+            Log.e("TTSApplication", "Startup initialization warning: ${e.message}")
+        }
     }
 }

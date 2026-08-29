@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,13 +32,18 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwitchAccount
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -288,23 +294,43 @@ fun LiveChatSection(
                         )
                     }
 
-                    // Speaking As Chip
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(SoftMintContainer)
-                            .clickable { onOpenProfileSwitcher() }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    // Speaking As Verified Fixed Profile Chip (Profile switching locked in chat)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = SoftMintContainer,
+                        border = BorderStroke(1.dp, BorderLightGreen)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.SwitchAccount, contentDescription = null, tint = PineGreenDark, modifier = Modifier.size(14.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.VerifiedUser,
+                                contentDescription = "सत्यापित प्रोफ़ाइल",
+                                tint = PineGreenDark,
+                                modifier = Modifier.size(13.dp)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "${activeMember?.fullName?.split(" ")?.firstOrNull() ?: "सदस्य"} (${activeMember?.designation ?: "खादिम"})",
+                                text = if (activeMember != null) {
+                                    "${activeMember.fullName.split(" ").firstOrNull() ?: activeMember.fullName} (${activeMember.designation})"
+                                } else {
+                                    "मेरी प्रोफ़ाइल"
+                                },
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = PineGreenDark
                             )
+                            if (activeMember == null) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "● सेट करें",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryGreen,
+                                    modifier = Modifier.clickable { onOpenProfileSwitcher() }
+                                )
+                            }
                         }
                     }
                 }
@@ -400,7 +426,9 @@ fun LiveChatSection(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(chatMessages, key = { it.id }) { msg ->
-                val isMe = msg.senderName.startsWith(activeMember?.fullName?.take(6) ?: "XYZ")
+                val isMe = (activeMember != null && msg.senderMemberId > 0 && msg.senderMemberId == activeMember.id) ||
+                           (activeMember != null && msg.senderName.trim().equals(activeMember.fullName.trim(), ignoreCase = true)) ||
+                           (activeMember != null && msg.senderName.contains(activeMember.fullName.take(5), ignoreCase = true))
                 val senderMember = allMembers.firstOrNull {
                     it.fullName.trim().equals(msg.senderName.trim(), ignoreCase = true) ||
                     msg.senderName.contains(it.fullName.take(5), ignoreCase = true)
@@ -469,7 +497,7 @@ fun LiveChatSection(
                                 lineHeight = 17.sp
                             )
 
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -492,11 +520,37 @@ fun LiveChatSection(
                                     Spacer(modifier = Modifier.width(1.dp))
                                 }
 
-                                Text(
-                                    text = msg.timeDisplay,
-                                    fontSize = 9.sp,
-                                    color = if (isMe) Color.White.copy(alpha = 0.75f) else TextSecondaryGreen
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Text(
+                                        text = msg.timeDisplay,
+                                        fontSize = 9.sp,
+                                        color = if (isMe) Color.White.copy(alpha = 0.85f) else TextSecondaryGreen
+                                    )
+
+                                    // Single Tick vs Double Tick for sender's messages
+                                    if (isMe) {
+                                        if (msg.isSeen || msg.status == "SEEN") {
+                                            // Double Tick (Seen / Read - Cyan Blue)
+                                            Icon(
+                                                Icons.Default.DoneAll,
+                                                contentDescription = "देखा गया (Seen - Double Tick)",
+                                                tint = Color(0xFF67E8F9),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        } else {
+                                            // Single Tick (Sent / Delivered to cloud)
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = "भेजा गया (Sent - Single Tick)",
+                                                tint = Color.White.copy(alpha = 0.85f),
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
