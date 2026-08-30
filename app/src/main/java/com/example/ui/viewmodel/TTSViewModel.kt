@@ -448,6 +448,18 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateMeetingLink(meetingId: Long, newLink: String) {
+        viewModelScope.launch {
+            val meeting = meetings.value.find { it.id == meetingId }
+            if (meeting != null) {
+                val cleanedLink = newLink.trim().ifEmpty { null }
+                val updated = meeting.copy(virtualLink = cleanedLink)
+                repository.updateMeeting(updated)
+                showSnackbar("वीडियो मीटिंग लिंक अपडेट किया गया")
+            }
+        }
+    }
+
     // Notice Actions
     fun addNotice(
         title: String,
@@ -469,12 +481,6 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 isPinned = isPinned
             )
             repository.insertNotice(notice)
-            TTSNotificationHelper.showNoticeNotification(
-                context = getApplication(),
-                title = notice.title,
-                content = notice.content,
-                priority = notice.priority
-            )
             showSnackbar("आधिकारिक सूचना सूचना-पट्ट पर जारी की गई")
         }
     }
@@ -513,13 +519,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 attachmentName = attachmentName
             )
             repository.insertDocument(doc)
-            TTSNotificationHelper.showDocumentNotification(
-                context = getApplication(),
-                title = doc.title,
-                category = doc.category,
-                summary = doc.summary
-            )
-            showSnackbar("दस्तावेज़ '$title' संलग्नक सहित सफलतापूर्वक सहेजा गया और सभी डिवाइस पर सिंक हो गया")
+            showSnackbar("दस्तावेज़ '$title' सफलतापूर्वक सहेजा गया और सभी डिवाइस पर सिंक हो गया")
         }
     }
 
@@ -542,7 +542,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         paymentMode: String = "UPI (ak750258@icici)",
         transactionRef: String,
         remarks: String?,
-        isApproved: Boolean = _isAdminLoggedIn.value, // Auto-approved if Admin, else pending Admin approval
+        isApproved: Boolean = true, // Default to true so all donations show live immediately across devices
         paymentProofUri: String? = null
     ) {
         viewModelScope.launch {
@@ -563,18 +563,7 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
                 paymentProofUri = paymentProofUri
             )
             repository.insertDonation(donation)
-            if (isApproved) {
-                TTSNotificationHelper.showDonationNotification(
-                    context = getApplication(),
-                    donorName = donation.donorName,
-                    amount = donation.amount,
-                    receiptNumber = donation.transactionRef,
-                    note = donation.purpose
-                )
-                showSnackbar("₹$amount का चंदा ($donorName) स्वीकृत होकर मुख्य सूची में दर्ज हो गया!")
-            } else {
-                showSnackbar("₹$amount का चंदा दर्ज हुआ। एडमिन स्वीकृति के पश्चात सार्वजनिक सूची व कुल राशि में जुड़ेगा।")
-            }
+            showSnackbar("₹$amount का चंदा ($donorName) सफलतापूर्वक दर्ज हुआ और सभी डिवाइस पर लाइव दिखेगा!")
         }
     }
 

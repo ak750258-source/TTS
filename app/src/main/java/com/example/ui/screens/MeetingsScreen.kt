@@ -117,6 +117,7 @@ fun MeetingsScreen(
     onOpenAddMeeting: () -> Unit,
     onOpenAdminLogin: () -> Unit,
     onDeleteMeeting: (Long) -> Unit,
+    onUpdateMeetingLink: (Meeting) -> Unit = {},
     onOpenProfileSwitcher: () -> Unit,
     onClearChat: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -173,7 +174,8 @@ fun MeetingsScreen(
                 isAdminLoggedIn = isAdminLoggedIn,
                 onOpenAddMeeting = onOpenAddMeeting,
                 onOpenAdminLogin = onOpenAdminLogin,
-                onDeleteMeeting = onDeleteMeeting
+                onDeleteMeeting = onDeleteMeeting,
+                onUpdateMeetingLink = onUpdateMeetingLink
             )
         }
     }
@@ -629,7 +631,8 @@ fun MeetingsScheduleSection(
     isAdminLoggedIn: Boolean,
     onOpenAddMeeting: () -> Unit,
     onOpenAdminLogin: () -> Unit,
-    onDeleteMeeting: (Long) -> Unit
+    onDeleteMeeting: (Long) -> Unit,
+    onUpdateMeetingLink: (Meeting) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -748,17 +751,43 @@ fun MeetingsScheduleSection(
                             }
                         }
 
-                        if (meeting.virtualLink != null) {
+                        if (!meeting.virtualLink.isNullOrBlank()) {
+                            val rawLink = meeting.virtualLink.trim()
+                            val safeUri = when {
+                                rawLink.startsWith("http://") || rawLink.startsWith("https://") -> Uri.parse(rawLink)
+                                rawLink.contains("meet.google.com") -> Uri.parse("https://$rawLink")
+                                else -> Uri.parse("https://meet.google.com/$rawLink")
+                            }
                             OutlinedButton(
                                 onClick = {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(meeting.virtualLink))
-                                    context.startActivity(intent)
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, safeUri)
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        android.widget.Toast.makeText(context, "गूगल मीट खोलने में असमर्थ: $rawLink", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(Icons.Default.Videocam, contentDescription = null, tint = PrimaryGreen)
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("ऑनलाइन वीडियो मीटिंग में जुड़ें (Google Meet)", fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        if (isAdminLoggedIn) {
+                            TextButton(
+                                onClick = { onUpdateMeetingLink(meeting) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Videocam, contentDescription = null, tint = PineGreenDark, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    if (meeting.virtualLink.isNullOrBlank()) "➕ Google Meet लिंक जोड़ें" else "✏️ Google Meet लिंक बदलें",
+                                    fontSize = 11.sp,
+                                    color = PineGreenDark,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }

@@ -70,6 +70,9 @@ interface TTSDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMeetings(meetings: List<Meeting>)
 
+    @Update
+    suspend fun updateMeeting(meeting: Meeting)
+
     @Query("DELETE FROM meetings WHERE id = :id")
     suspend fun deleteMeetingById(id: Long)
 

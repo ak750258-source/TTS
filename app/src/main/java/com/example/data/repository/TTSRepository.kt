@@ -307,6 +307,10 @@ class TTSRepository(
         firestoreService.syncMeetingToCloud(saved)
         return id
     }
+    suspend fun updateMeeting(meeting: Meeting) {
+        ttsDao.updateMeeting(meeting)
+        firestoreService.syncMeetingToCloud(meeting)
+    }
     suspend fun deleteMeeting(id: Long) {
         ttsDao.deleteMeetingById(id)
         firestoreService.deleteMeetingFromCloud(id)

@@ -43,6 +43,7 @@ import com.example.ui.components.AwardBestPerformerDialog
 import com.example.ui.components.DistributeDesignationDialog
 import com.example.ui.components.DocumentViewerDialog
 import com.example.ui.components.EditDonationRecordDialog
+import com.example.ui.components.EditMeetingLinkDialog
 import com.example.ui.components.EditMemberDialog
 import com.example.ui.components.ProfileSwitcherDialog
 import com.example.ui.components.SelfRegisterMemberDialog
@@ -175,13 +176,14 @@ fun TTSMainApp(
     var memberForBestPerformer by remember { mutableStateOf<Member?>(null) }
     var memberForPhotoUpdate by remember { mutableStateOf<Member?>(null) }
     var memberForEdit by remember { mutableStateOf<Member?>(null) }
+    var meetingForEditLink by remember { mutableStateOf<Meeting?>(null) }
     var viewedDocument by remember { mutableStateOf<OfficialDocument?>(null) }
 
     val anyDialogVisible = showAdminLoginDialog || showProfileSwitcher || showAddMemberDialog ||
             showSelfRegisterDialog || showAddMeetingDialog || showAddNoticeDialog ||
             showAddDonationDialog || showAddDocumentDialog || donationForEdit != null ||
             memberForDesignation != null || memberForBestPerformer != null ||
-            memberForPhotoUpdate != null || memberForEdit != null || viewedDocument != null
+            memberForPhotoUpdate != null || memberForEdit != null || meetingForEditLink != null || viewedDocument != null
 
     BackHandler(enabled = anyDialogVisible || currentTab != AppTab.HOME) {
         when {
@@ -197,6 +199,8 @@ fun TTSMainApp(
             memberForDesignation != null -> memberForDesignation = null
             memberForBestPerformer != null -> memberForBestPerformer = null
             memberForPhotoUpdate != null -> memberForPhotoUpdate = null
+            memberForEdit != null -> memberForEdit = null
+            meetingForEditLink != null -> meetingForEditLink = null
             viewedDocument != null -> viewedDocument = null
             currentTab != AppTab.HOME -> viewModel.setTab(AppTab.HOME)
         }
@@ -322,6 +326,7 @@ fun TTSMainApp(
                         onOpenAddMeeting = { showAddMeetingDialog = true },
                         onOpenAdminLogin = { showAdminLoginDialog = true },
                         onDeleteMeeting = { id -> viewModel.deleteMeeting(id) },
+                        onUpdateMeetingLink = { meeting -> meetingForEditLink = meeting },
                         onOpenProfileSwitcher = { showProfileSwitcher = true },
                         onClearChat = { viewModel.clearAllChatMessages() }
                     )
@@ -583,6 +588,19 @@ fun TTSMainApp(
             onConfirm = { updatedDonation ->
                 viewModel.updateDonation(updatedDonation)
                 donationForEdit = null
+            }
+        )
+    }
+
+    // Edit Google Meet Link Dialog (Admin Only)
+    if (meetingForEditLink != null) {
+        val targetMeeting = meetingForEditLink!!
+        EditMeetingLinkDialog(
+            meeting = targetMeeting,
+            onDismiss = { meetingForEditLink = null },
+            onConfirm = { meetingId, newLink ->
+                viewModel.updateMeetingLink(meetingId, newLink)
+                meetingForEditLink = null
             }
         )
     }

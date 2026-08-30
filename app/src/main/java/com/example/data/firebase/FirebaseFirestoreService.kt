@@ -134,7 +134,6 @@ class FirebaseFirestoreService(context: Context? = null) {
     private val expenseUpsertListeners = mutableListOf<(List<Expense>) -> Unit>()
     private val expenseDeleteListeners = mutableListOf<(Long) -> Unit>()
     private val memberPhotoUpdateListeners = mutableListOf<(Long, String) -> Unit>()
-    private val photoChunkBuffers = ConcurrentHashMap<String, ConcurrentHashMap<Int, String>>()
 
     private val chatListeners = ConcurrentHashMap<String, MutableList<(List<ChatMessage>) -> Unit>>()
     private val chatDeleteListeners = mutableListOf<(Long) -> Unit>()
@@ -151,6 +150,30 @@ class FirebaseFirestoreService(context: Context? = null) {
     private var lastChatClearedTimestamp: Long = 0L
     @Volatile
     private var lastDataClearedTimestamp: Long = 0L
+
+    // Notification suppression & duplicate prevention
+    private val serviceStartTime = System.currentTimeMillis()
+    @Volatile
+    private var isCatchupSyncActive = false
+    private val notifiedMessageIds = ConcurrentHashMap.newKeySet<Long>()
+    private val notifiedNoticeIds = ConcurrentHashMap.newKeySet<Long>()
+    private val notifiedDonationIds = ConcurrentHashMap.newKeySet<Long>()
+    private val notifiedDocumentIds = ConcurrentHashMap.newKeySet<Long>()
+
+    private fun shouldNotify(
+        id: Long,
+        notifiedSet: MutableSet<Long>,
+        eventTimestamp: Long,
+        isFromAnotherDevice: Boolean
+    ): Boolean {
+        if (isCatchupSyncActive) return false
+        if (!isFromAnotherDevice) return false
+        if (id <= 0L) return false
+        // Skip any historical events that occurred before this app session started
+        if (eventTimestamp > 0L && eventTimestamp < (serviceStartTime - 3000L)) return false
+        // Ensure notification is displayed exactly once per item ID
+        return notifiedSet.add(id)
+    }
 
     init {
         Log.d(TAG, "Initializing Real-Time Cloud Sync Engine with Device ID: $DEVICE_ID")
@@ -256,6 +279,7 @@ class FirebaseFirestoreService(context: Context? = null) {
     // --- CATCH-UP RECENT EVENTS (FOR MISSED DATA / NEW PHONES) ---
     fun fetchCatchupEvents() {
         serviceScope.launch {
+            isCatchupSyncActive = true
             try {
                 // Fetch events from recent cache so any newly opened device catches up on all data
                 val pollUrls = listOf(
@@ -279,6 +303,10 @@ class FirebaseFirestoreService(context: Context? = null) {
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Catch-up poll note: ${e.message}")
+            } finally {
+                // Delay clearing catchup flag briefly to ensure parsed queued events don't trigger notifications
+                delay(1500)
+                isCatchupSyncActive = false
             }
         }
     }
@@ -407,13 +435,15 @@ class FirebaseFirestoreService(context: Context? = null) {
                                     }
                                 }
 
-                                appContext?.let { ctx ->
-                                    TTSNotificationHelper.showChatNotification(
-                                        context = ctx,
-                                        senderName = msg.senderName,
-                                        channelId = msg.channelId,
-                                        messageText = msg.messageText
-                                    )
+                                if (shouldNotify(msg.id, notifiedMessageIds, msg.timestamp, isFromAnotherDevice)) {
+                                    appContext?.let { ctx ->
+                                        TTSNotificationHelper.showChatNotification(
+                                            context = ctx,
+                                            senderName = msg.senderName,
+                                            channelId = msg.channelId,
+                                            messageText = msg.messageText
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -441,33 +471,11 @@ class FirebaseFirestoreService(context: Context? = null) {
                 "MEMBER_PHOTO_UPDATE" -> {
                     if (payload != null) {
                         val memberId = payload.optLong("memberId", 0L)
-                        val totalChunks = payload.optInt("totalChunks", 1)
-                        val chunkIndex = payload.optInt("chunkIndex", 0)
-                        val chunkData = payload.optString("chunkData", "")
                         val directPhotoUri = payload.optString("photoUri", "")
-                        val transferId = payload.optString("transferId", "photo_$memberId")
 
                         if (memberId > 0) {
-                            if (totalChunks <= 1 && directPhotoUri.isNotBlank()) {
-                                synchronized(memberPhotoUpdateListeners) {
-                                    memberPhotoUpdateListeners.forEach { it(memberId, directPhotoUri) }
-                                }
-                            } else if (chunkData.isNotBlank()) {
-                                val buffer = photoChunkBuffers.getOrPut(transferId) { ConcurrentHashMap() }
-                                buffer[chunkIndex] = chunkData
-                                if (buffer.size >= totalChunks) {
-                                    val fullPhotoBuilder = StringBuilder()
-                                    for (i in 0 until totalChunks) {
-                                        buffer[i]?.let { fullPhotoBuilder.append(it) }
-                                    }
-                                    val fullPhotoUri = fullPhotoBuilder.toString()
-                                    photoChunkBuffers.remove(transferId)
-                                    if (fullPhotoUri.isNotBlank()) {
-                                        synchronized(memberPhotoUpdateListeners) {
-                                            memberPhotoUpdateListeners.forEach { it(memberId, fullPhotoUri) }
-                                        }
-                                    }
-                                }
+                            synchronized(memberPhotoUpdateListeners) {
+                                memberPhotoUpdateListeners.forEach { it(memberId, directPhotoUri) }
                             }
                         }
                     }
@@ -488,8 +496,8 @@ class FirebaseFirestoreService(context: Context? = null) {
                                 noticeUpsertListeners.forEach { it(listOf(notice)) }
                             }
 
-                            // Trigger phone notification when notice is added
-                            if (isFromAnotherDevice) {
+                            // Trigger phone notification only for fresh incoming notice
+                            if (shouldNotify(notice.id, notifiedNoticeIds, eventTimestamp, isFromAnotherDevice)) {
                                 appContext?.let { ctx ->
                                     TTSNotificationHelper.showNoticeNotification(
                                         context = ctx,
@@ -518,8 +526,8 @@ class FirebaseFirestoreService(context: Context? = null) {
                                 donationUpsertListeners.forEach { it(listOf(donation)) }
                             }
 
-                            // Trigger phone notification when donation/chanda is added
-                            if (isFromAnotherDevice) {
+                            // Trigger phone notification only for fresh incoming donation
+                            if (shouldNotify(donation.id, notifiedDonationIds, donation.timestamp, isFromAnotherDevice)) {
                                 appContext?.let { ctx ->
                                     TTSNotificationHelper.showDonationNotification(
                                         context = ctx,
@@ -567,8 +575,8 @@ class FirebaseFirestoreService(context: Context? = null) {
                                 documentUpsertListeners.forEach { it(listOf(doc)) }
                             }
 
-                            // Trigger notification for new official document
-                            if (isFromAnotherDevice) {
+                            // Trigger notification only for fresh incoming document
+                            if (shouldNotify(doc.id, notifiedDocumentIds, eventTimestamp, isFromAnotherDevice)) {
                                 appContext?.let { ctx ->
                                     TTSNotificationHelper.showDocumentNotification(
                                         context = ctx,
@@ -856,49 +864,11 @@ class FirebaseFirestoreService(context: Context? = null) {
     suspend fun syncMemberPhotoToCloud(memberId: Long, photoUri: String?) {
         withContext(Dispatchers.IO) {
             try {
-                if (photoUri.isNullOrBlank()) {
-                    val json = JSONObject().apply {
-                        put("memberId", memberId)
-                        put("totalChunks", 1)
-                        put("chunkIndex", 0)
-                        put("photoUri", "")
-                    }
-                    broadcastEvent("MEMBER_PHOTO_UPDATE", json)
-                    return@withContext
+                val json = JSONObject().apply {
+                    put("memberId", memberId)
+                    put("photoUri", photoUri?.trim() ?: "")
                 }
-
-                val cleaned = photoUri.trim()
-                if (cleaned.length <= 2500) {
-                    val json = JSONObject().apply {
-                        put("memberId", memberId)
-                        put("totalChunks", 1)
-                        put("chunkIndex", 0)
-                        put("photoUri", cleaned)
-                    }
-                    broadcastEvent("MEMBER_PHOTO_UPDATE", json)
-                } else {
-                    val chunkSize = 2000
-                    val totalChunks = (cleaned.length + chunkSize - 1) / chunkSize
-                    val transferId = "photo_${memberId}_${System.currentTimeMillis()}"
-
-                    for (i in 0 until totalChunks) {
-                        val start = i * chunkSize
-                        val end = kotlin.math.min(cleaned.length, start + chunkSize)
-                        val chunk = cleaned.substring(start, end)
-
-                        val json = JSONObject().apply {
-                            put("memberId", memberId)
-                            put("transferId", transferId)
-                            put("totalChunks", totalChunks)
-                            put("chunkIndex", i)
-                            put("chunkData", chunk)
-                        }
-                        broadcastEvent("MEMBER_PHOTO_UPDATE", json)
-                        if (totalChunks > 1) {
-                            delay(60)
-                        }
-                    }
-                }
+                broadcastEvent("MEMBER_PHOTO_UPDATE", json)
             } catch (e: Exception) {
                 Log.e(TAG, "syncMemberPhotoToCloud error: ${e.message}")
             }
@@ -908,13 +878,6 @@ class FirebaseFirestoreService(context: Context? = null) {
     // --- SYNC ACTIONS TO CLOUD ---
     suspend fun syncMemberToCloud(member: Member) {
         withContext(Dispatchers.IO) {
-            // Keep photoUri within safe SSE envelope size (up to 2.5KB directly in upsert)
-            val photoForCloud = if (member.photoUri != null && member.photoUri.length <= 2500) {
-                member.photoUri
-            } else {
-                ""
-            }
-
             val json = JSONObject().apply {
                 put("id", member.id)
                 put("memberCode", member.memberCode)
@@ -932,14 +895,9 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("isBestPerformer", member.isBestPerformer)
                 put("bestPerformerBadge", member.bestPerformerBadge ?: "")
                 put("photoResName", member.photoResName ?: "")
-                put("photoUri", photoForCloud)
+                put("photoUri", member.photoUri?.trim() ?: "")
             }
             broadcastEvent("MEMBER_UPSERT", json)
-
-            // If photo was too large for single MEMBER_UPSERT, sync it via chunked channel
-            if (!member.photoUri.isNullOrBlank() && member.photoUri.length > 2500) {
-                syncMemberPhotoToCloud(member.id, member.photoUri)
-            }
         }
     }
 
@@ -1037,9 +995,9 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     suspend fun syncDocumentToCloud(doc: OfficialDocument) {
         withContext(Dispatchers.IO) {
-            val safeAttachmentUri = if (!doc.attachmentUri.isNullOrBlank() && doc.attachmentUri.length > 3500) {
-                // If attachment is too large, preserve header/preview so payload doesn't exceed free cloud limits
-                if (doc.attachmentUri.startsWith("data:image")) doc.attachmentUri.take(3000) else ""
+            val safeAttachmentUri = if (!doc.attachmentUri.isNullOrBlank() && doc.attachmentUri.length > 4000) {
+                // If attachment is too large for real-time payload, do not corrupt Base64 string with truncation
+                ""
             } else {
                 doc.attachmentUri ?: ""
             }

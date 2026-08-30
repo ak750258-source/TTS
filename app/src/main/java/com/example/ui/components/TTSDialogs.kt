@@ -104,8 +104,10 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.R
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Videocam
 import com.example.data.model.Donation
 import com.example.data.model.Expense
+import com.example.data.model.Meeting
 import com.example.data.model.Member
 import com.example.data.model.OfficialDocument
 import com.example.util.ImageUtils
@@ -2318,6 +2320,17 @@ fun AddMeetingDialog(
                 )
 
                 OutlinedTextField(
+                    value = virtualLink,
+                    onValueChange = { virtualLink = it },
+                    label = { Text("गूगल मीट / ऑनलाइन वीडियो लिंक (Google Meet Link)") },
+                    placeholder = { Text("उदा. https://meet.google.com/abc-defg-hij") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Videocam, contentDescription = null, tint = PrimaryGreen)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
                     value = agenda,
                     onValueChange = { agenda = it },
                     label = { Text("कार्यसूची / एजेंडा (Agenda)") },
@@ -2342,7 +2355,7 @@ fun AddMeetingDialog(
                                     dateDisplay,
                                     timeDisplay,
                                     venue,
-                                    virtualLink,
+                                    virtualLink.trim().ifEmpty { null },
                                     chairperson,
                                     if (agenda.isBlank()) "1. 12 रबी-उल-अव्वल की तैयारियों की समीक्षा।\n2. लंगर व जुलूस अनुशासन।" else agenda
                                 )
@@ -2351,6 +2364,98 @@ fun AddMeetingDialog(
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
                         Text("बैठक तय करें", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- EDIT MEETING LINK DIALOG (ADMIN GOOGLE MEET LINK UPDATE) ---
+@Composable
+fun EditMeetingLinkDialog(
+    meeting: Meeting,
+    onDismiss: () -> Unit,
+    onConfirm: (meetingId: Long, newLink: String) -> Unit
+) {
+    var linkInput by remember { mutableStateOf(meeting.virtualLink ?: "https://meet.google.com/") }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Videocam, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Google Meet लिंक सेट / अपडेट करें",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = TextPrimaryGreen
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                Text(
+                    text = "बैठक: ${meeting.title}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PineGreenDark
+                )
+
+                Text(
+                    text = "सभी सदस्य इस लिंक पर क्लिक करके सीधे वीडियो मीटिंग में शामिल हो सकेंगे।",
+                    fontSize = 11.sp,
+                    color = TextSecondaryGreen
+                )
+
+                OutlinedTextField(
+                    value = linkInput,
+                    onValueChange = { linkInput = it },
+                    label = { Text("गूगल मीट URL / कोड (Meet Link) *") },
+                    placeholder = { Text("उदा. meet.google.com/xyz-abcd-efg") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Videocam, contentDescription = null, tint = PrimaryGreen)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            onConfirm(meeting.id, linkInput.trim())
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                    ) {
+                        Text("लिंक सेव करें (Save Link)", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -2761,7 +2866,8 @@ fun AddDocumentDialog(
                         }
                     } catch (_: Exception) {}
 
-                    val base64 = ImageUtils.uriToBase64(context, uri, maxDimension = 180, quality = 50)
+                    // Compress thumbnail for smooth real-time cross-device sync
+                    val base64 = ImageUtils.uriToBase64(context, uri, maxDimension = 140, quality = 45)
                     attachmentUri = base64 ?: uri.toString()
                     attachmentName = pickedFileName
                 } catch (e: Exception) {
@@ -3070,16 +3176,24 @@ fun AddDocumentDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            if (title.isNotBlank() && summary.isNotBlank()) {
+                            if (title.isNotBlank()) {
+                                val effectiveSummary = summary.trim().ifEmpty {
+                                    fullContent.trim().take(120).ifEmpty { "आधिकारिक संलग्न दस्तावेज़" }
+                                }
+                                val effectiveFull = fullContent.trim().ifEmpty {
+                                    summary.trim().ifEmpty { title.trim() }
+                                }
                                 onConfirm(
-                                    title,
+                                    title.trim(),
                                     category,
                                     accessLevel,
-                                    summary,
-                                    if (fullContent.isBlank()) summary else fullContent,
+                                    effectiveSummary,
+                                    effectiveFull,
                                     attachmentUri,
                                     attachmentName
                                 )
+                            } else {
+                                android.widget.Toast.makeText(context, "कृपया दस्तावेज़ का नाम दर्ज करें", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)

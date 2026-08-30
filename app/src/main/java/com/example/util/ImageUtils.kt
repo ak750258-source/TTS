@@ -19,22 +19,22 @@ import kotlin.math.min
 object ImageUtils {
 
     // Fast in-memory bitmap cache to prevent redundant Base64 decoding
-    private val memoryCache: LruCache<String, Bitmap> = object : LruCache<String, Bitmap>(50) {
+    private val memoryCache: LruCache<String, Bitmap> = object : LruCache<String, Bitmap>(100) {
         override fun sizeOf(key: String, bitmap: Bitmap): Int {
-            return bitmap.byteCount / 1024
+            return (bitmap.byteCount / 1024).coerceAtLeast(1)
         }
     }
 
     /**
      * Converts an image Uri (from Gallery / Camera) to an optimized, compressed Base64 Data URI string.
-     * Dimensions are scaled to 180x180 px at quality 65% (~3-5KB), which guarantees instant rendering,
+     * Dimensions are scaled to 160x160 px at quality 60% (~3-5KB), which guarantees instant rendering,
      * low memory footprint, and reliable transmission over real-time cloud sync to all devices.
      */
     suspend fun uriToBase64(
         context: Context,
         uri: Uri,
-        maxDimension: Int = 140,
-        quality: Int = 55
+        maxDimension: Int = 160,
+        quality: Int = 60
     ): String? = withContext(Dispatchers.IO) {
         try {
             val contentResolver = context.contentResolver
@@ -138,17 +138,30 @@ object ImageUtils {
     fun getBitmapFromPhotoUri(photoUri: String?): Bitmap? {
         if (photoUri.isNullOrBlank()) return null
 
-        // Check memory cache first
-        memoryCache.get(photoUri)?.let { return it }
+        val trimmed = photoUri.trim()
+        memoryCache.get(trimmed)?.let { return it }
 
         return try {
-            val base64Data = when {
-                photoUri.startsWith("data:image/") -> photoUri.substringAfter(",")
-                photoUri.startsWith("http://") || photoUri.startsWith("https://") || photoUri.startsWith("content://") || photoUri.startsWith("file://") -> {
-                    // Not a raw base64 string, let AsyncImage handle it
-                    return null
+            if (trimmed.startsWith("/") || trimmed.startsWith("file:///")) {
+                val path = if (trimmed.startsWith("file://")) trimmed.substring(7) else trimmed
+                val file = File(path)
+                if (file.exists()) {
+                    val bmp = BitmapFactory.decodeFile(file.absolutePath)
+                    if (bmp != null) {
+                        memoryCache.put(trimmed, bmp)
+                        return bmp
+                    }
                 }
-                else -> photoUri
+            }
+
+            if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("content://")) {
+                return null
+            }
+
+            val base64Data = if (trimmed.contains(",")) {
+                trimmed.substringAfter(",")
+            } else {
+                trimmed
             }
 
             val decodedBytes = Base64.decode(base64Data, Base64.DEFAULT)
@@ -156,7 +169,7 @@ object ImageUtils {
 
             val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
             if (bitmap != null) {
-                memoryCache.put(photoUri, bitmap)
+                memoryCache.put(trimmed, bitmap)
             }
             bitmap
         } catch (e: Exception) {
