@@ -29,12 +29,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.model.Donation
+import com.example.data.model.Expense
 import com.example.data.model.Meeting
 import com.example.data.model.Member
 import com.example.data.model.OfficialDocument
 import com.example.service.TTSBackgroundSyncService
 import com.example.ui.components.AddDocumentDialog
 import com.example.ui.components.AddDonationRecordDialog
+import com.example.ui.components.AddExpenseDialog
 import com.example.ui.components.AddMeetingDialog
 import com.example.ui.components.AddMemberDialog
 import com.example.ui.components.AddNoticeDialog
@@ -43,10 +45,12 @@ import com.example.ui.components.AwardBestPerformerDialog
 import com.example.ui.components.DistributeDesignationDialog
 import com.example.ui.components.DocumentViewerDialog
 import com.example.ui.components.EditDonationRecordDialog
+import com.example.ui.components.EditExpenseDialog
 import com.example.ui.components.EditMeetingLinkDialog
 import com.example.ui.components.EditMemberDialog
 import com.example.ui.components.ProfileSwitcherDialog
 import com.example.ui.components.SelfRegisterMemberDialog
+import com.example.ui.components.SetDonationGoalDialog
 import com.example.ui.components.TTSAppHeader
 import com.example.ui.components.TTSBottomNavigationBar
 import com.example.ui.components.UpdateMemberPhotoDialog
@@ -75,7 +79,7 @@ class MainActivity : ComponentActivity() {
             // Create notification channels
             TTSNotificationHelper.createNotificationChannels(this)
             TTSBackgroundSyncService.startService(this)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             // Safe initialization
         }
 
@@ -154,6 +158,10 @@ fun TTSMainApp(
     val approvedDonations by viewModel.approvedDonations.collectAsState()
     val pendingDonations by viewModel.pendingDonations.collectAsState()
     val totalApprovedDonations by viewModel.totalApprovedDonationsSum.collectAsState()
+    val expenses by viewModel.expenses.collectAsState()
+    val totalExpenses by viewModel.totalExpensesSum.collectAsState()
+    val remainingBalance by viewModel.remainingBalance.collectAsState()
+    val donationGoal by viewModel.donationGoal.collectAsState()
     val chatMessages by viewModel.currentChannelMessages.collectAsState()
     val selectedChannel by viewModel.selectedChatChannel.collectAsState()
     val previewIDCardMember by viewModel.selectedMemberForIDCard.collectAsState()
@@ -164,14 +172,17 @@ fun TTSMainApp(
 
     // Dialog States
     var showAdminLoginDialog by remember { mutableStateOf(false) }
+    var showSetGoalDialog by remember { mutableStateOf(false) }
     var showProfileSwitcher by remember { mutableStateOf(false) }
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var showSelfRegisterDialog by remember { mutableStateOf(false) }
     var showAddMeetingDialog by remember { mutableStateOf(false) }
     var showAddNoticeDialog by remember { mutableStateOf(false) }
     var showAddDonationDialog by remember { mutableStateOf(false) }
+    var showAddExpenseDialog by remember { mutableStateOf(false) }
     var showAddDocumentDialog by remember { mutableStateOf(false) }
     var donationForEdit by remember { mutableStateOf<Donation?>(null) }
+    var expenseForEdit by remember { mutableStateOf<Expense?>(null) }
     var memberForDesignation by remember { mutableStateOf<Member?>(null) }
     var memberForBestPerformer by remember { mutableStateOf<Member?>(null) }
     var memberForPhotoUpdate by remember { mutableStateOf<Member?>(null) }
@@ -181,8 +192,8 @@ fun TTSMainApp(
 
     val anyDialogVisible = showAdminLoginDialog || showProfileSwitcher || showAddMemberDialog ||
             showSelfRegisterDialog || showAddMeetingDialog || showAddNoticeDialog ||
-            showAddDonationDialog || showAddDocumentDialog || donationForEdit != null ||
-            memberForDesignation != null || memberForBestPerformer != null ||
+            showAddDonationDialog || showAddExpenseDialog || showAddDocumentDialog || donationForEdit != null ||
+            expenseForEdit != null || memberForDesignation != null || memberForBestPerformer != null ||
             memberForPhotoUpdate != null || memberForEdit != null || meetingForEditLink != null || viewedDocument != null
 
     BackHandler(enabled = anyDialogVisible || currentTab != AppTab.HOME) {
@@ -194,8 +205,10 @@ fun TTSMainApp(
             showAddMeetingDialog -> showAddMeetingDialog = false
             showAddNoticeDialog -> showAddNoticeDialog = false
             showAddDonationDialog -> showAddDonationDialog = false
+            showAddExpenseDialog -> showAddExpenseDialog = false
             showAddDocumentDialog -> showAddDocumentDialog = false
             donationForEdit != null -> donationForEdit = null
+            expenseForEdit != null -> expenseForEdit = null
             memberForDesignation != null -> memberForDesignation = null
             memberForBestPerformer != null -> memberForBestPerformer = null
             memberForPhotoUpdate != null -> memberForPhotoUpdate = null
@@ -247,11 +260,18 @@ fun TTSMainApp(
                         documents = documents,
                         donations = approvedDonations,
                         totalDonations = totalApprovedDonations ?: 0.0,
+                        expenses = expenses,
+                        totalExpenses = totalExpenses,
+                        remainingBalance = remainingBalance,
+                        donationGoal = donationGoal,
                         activeMember = activeMember,
                         isAdminLoggedIn = isAdminLoggedIn,
                         onlineCandidateIds = onlineCandidateIds,
                         onOpenAdminLogin = { showAdminLoginDialog = true },
                         onLogoutAdmin = { viewModel.logoutAdmin() },
+                        onOpenEditGoal = {
+                            if (isAdminLoggedIn) showSetGoalDialog = true else showAdminLoginDialog = true
+                        },
                         onNavigateToTab = { viewModel.setTab(it) },
                         onOpenAddMember = {
                             if (isAdminLoggedIn) showAddMemberDialog = true else showAdminLoginDialog = true
@@ -260,6 +280,7 @@ fun TTSMainApp(
                             if (isAdminLoggedIn) showAddMeetingDialog = true else showAdminLoginDialog = true
                         },
                         onOpenAddDonation = { showAddDonationDialog = true },
+                        onOpenAddExpense = { showAddExpenseDialog = true },
                         onOpenAddNotice = {
                             if (isAdminLoggedIn) showAddNoticeDialog = true else showAdminLoginDialog = true
                         },
@@ -353,15 +374,26 @@ fun TTSMainApp(
                         approvedDonations = approvedDonations,
                         pendingDonations = pendingDonations,
                         totalDonations = totalApprovedDonations ?: 0.0,
+                        expenses = expenses,
+                        totalExpenses = totalExpenses,
+                        remainingBalance = remainingBalance,
+                        donationGoal = donationGoal,
                         isAdminLoggedIn = isAdminLoggedIn,
                         onOpenAdminLogin = { showAdminLoginDialog = true },
+                        onOpenEditGoal = {
+                            if (isAdminLoggedIn) showSetGoalDialog = true else showAdminLoginDialog = true
+                        },
                         onOpenAddDonationModal = { showAddDonationDialog = true },
+                        onOpenAddExpenseModal = { showAddExpenseDialog = true },
                         onApproveDonation = { donation -> viewModel.approveDonation(donation) },
                         onRejectDonation = { donation -> viewModel.rejectDonation(donation) },
                         onVerifyDonation = { id, verified -> viewModel.updateDonationVerification(id, verified) },
                         onEditDonation = { donationForEdit = it },
                         onDeleteDonation = { id -> viewModel.deleteDonation(id) },
-                        onClearOldDonations = { viewModel.clearAllOldDonations() }
+                        onClearOldDonations = { viewModel.clearAllOldDonations() },
+                        onEditExpense = { expenseForEdit = it },
+                        onDeleteExpense = { id -> viewModel.deleteExpense(id) },
+                        onClearAllExpenses = { viewModel.clearAllExpenses() }
                     )
                 }
             }
@@ -601,6 +633,49 @@ fun TTSMainApp(
             onConfirm = { meetingId, newLink ->
                 viewModel.updateMeetingLink(meetingId, newLink)
                 meetingForEditLink = null
+            }
+        )
+    }
+
+    // Add Expense Dialog (खर्च विवरण दर्ज करें)
+    if (showAddExpenseDialog) {
+        AddExpenseDialog(
+            onDismiss = { showAddExpenseDialog = false },
+            onConfirm = { title, category, amount, spentBy, receiptRef, attachmentUri, remarks ->
+                viewModel.addExpense(
+                    title = title,
+                    category = category,
+                    amount = amount,
+                    spentBy = spentBy,
+                    receiptRef = receiptRef,
+                    attachmentUri = attachmentUri,
+                    remarks = remarks
+                )
+                showAddExpenseDialog = false
+            }
+        )
+    }
+
+    // Edit Expense Dialog (खर्च विवरण संशोधित करें)
+    if (expenseForEdit != null) {
+        EditExpenseDialog(
+            expense = expenseForEdit!!,
+            onDismiss = { expenseForEdit = null },
+            onConfirm = { updatedExpense ->
+                viewModel.updateExpense(updatedExpense)
+                expenseForEdit = null
+            }
+        )
+    }
+
+    // Set Donation Goal Dialog (चंदा संग्रह लक्ष्य - एडमिन सुरक्षित)
+    if (showSetGoalDialog) {
+        SetDonationGoalDialog(
+            currentGoal = donationGoal,
+            onDismiss = { showSetGoalDialog = false },
+            onConfirm = { newGoal ->
+                viewModel.updateDonationGoal(newGoal)
+                showSetGoalDialog = false
             }
         )
     }

@@ -39,7 +39,7 @@ class TTSBackgroundSyncService : Service() {
                 } else {
                     context.startService(intent)
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Error starting TTSBackgroundSyncService: ${e.message}")
             }
         }

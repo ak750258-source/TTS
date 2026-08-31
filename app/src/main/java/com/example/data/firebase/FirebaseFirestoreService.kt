@@ -133,7 +133,12 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     private val expenseUpsertListeners = mutableListOf<(List<Expense>) -> Unit>()
     private val expenseDeleteListeners = mutableListOf<(Long) -> Unit>()
+    private val expenseClearListeners = mutableListOf<() -> Unit>()
+    private val donationClearListeners = mutableListOf<() -> Unit>()
+    private val donationGoalListeners = mutableListOf<(Double) -> Unit>()
     private val memberPhotoUpdateListeners = mutableListOf<(Long, String) -> Unit>()
+    // Buffer for assembling multi-part / chunked photo data
+    private val incomingPhotoChunks = ConcurrentHashMap<String, ConcurrentHashMap<Int, String>>()
 
     private val chatListeners = ConcurrentHashMap<String, MutableList<(List<ChatMessage>) -> Unit>>()
     private val chatDeleteListeners = mutableListOf<(Long) -> Unit>()
@@ -241,7 +246,6 @@ class FirebaseFirestoreService(context: Context? = null) {
                 try {
                     val request = Request.Builder()
                         .url("$BASE_URL/json")
-                        .header("Accept", "text/event-stream")
                         .build()
 
                     _isCloudConnected.value = true
@@ -283,22 +287,27 @@ class FirebaseFirestoreService(context: Context? = null) {
             try {
                 // Fetch events from recent cache so any newly opened device catches up on all data
                 val pollUrls = listOf(
-                    "$BASE_URL/json?poll=1&since=all",
-                    "$BASE_URL/json?poll=1&since=7d"
+                    "$BASE_URL/json?poll=1&since=7d",
+                    "$BASE_URL/json?poll=1&since=24h",
+                    "$BASE_URL/json?poll=1&since=12h"
                 )
                 for (pollUrl in pollUrls) {
-                    val request = Request.Builder().url(pollUrl).build()
-                    httpClient.newCall(request).execute().use { response ->
-                        if (response.isSuccessful) {
-                            val body = response.body?.string() ?: ""
-                            val lines = body.split("\n")
-                            for (line in lines) {
-                                if (line.isNotBlank()) {
-                                    parseAndDispatchRawJsonLine(line)
+                    try {
+                        val request = Request.Builder().url(pollUrl).build()
+                        httpClient.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val body = response.body?.string() ?: ""
+                                val lines = body.split("\n")
+                                for (line in lines) {
+                                    if (line.isNotBlank()) {
+                                        parseAndDispatchRawJsonLine(line)
+                                    }
                                 }
+                                return@launch
                             }
-                            return@launch
                         }
+                    } catch (netEx: Exception) {
+                        Log.v(TAG, "Catchup poll url note: ${netEx.message}")
                     }
                 }
             } catch (e: Exception) {
@@ -316,20 +325,31 @@ class FirebaseFirestoreService(context: Context? = null) {
     }
 
     private fun parseAndDispatchRawJsonLine(line: String) {
-        val trimmed = line.trim()
+        var trimmed = line.trim()
+        if (trimmed.startsWith("data:")) {
+            trimmed = trimmed.substringAfter("data:").trim()
+        }
+        if (trimmed.startsWith("event:") || trimmed.startsWith("id:") || trimmed.startsWith(":")) {
+            return
+        }
         if (trimmed.isEmpty() || !trimmed.startsWith("{")) return
         try {
             val sseJson = JSONObject(trimmed)
             val event = sseJson.optString("event", "message")
-            if (event == "message" || event.isEmpty() || event == "poll") {
-                val messageBody = sseJson.optString("message", "").trim()
-                if (messageBody.startsWith("{")) {
-                    handleCloudEvent(messageBody)
-                } else if (sseJson.has("eventType")) {
-                    handleCloudEvent(trimmed)
-                }
-            } else if (sseJson.has("eventType")) {
+            if (sseJson.has("eventType")) {
                 handleCloudEvent(trimmed)
+            } else if (event == "message" || event.isEmpty() || event == "poll" || event == "open") {
+                val messageObj = sseJson.opt("message")
+                when (messageObj) {
+                    is JSONObject -> handleCloudEvent(messageObj.toString())
+                    is String -> {
+                        val str = messageObj.trim()
+                        if (str.startsWith("{")) {
+                            handleCloudEvent(str)
+                        }
+                    }
+                    else -> {}
+                }
             }
         } catch (e: Exception) {
             if (trimmed.startsWith("{") && trimmed.contains("eventType")) {
@@ -476,6 +496,35 @@ class FirebaseFirestoreService(context: Context? = null) {
                         if (memberId > 0) {
                             synchronized(memberPhotoUpdateListeners) {
                                 memberPhotoUpdateListeners.forEach { it(memberId, directPhotoUri) }
+                            }
+                        }
+                    }
+                }
+                "MEMBER_PHOTO_CHUNK" -> {
+                    if (payload != null) {
+                        val memberId = payload.optLong("memberId", 0L)
+                        val photoId = payload.optString("photoId", "$memberId")
+                        val chunkIndex = payload.optInt("chunkIndex", 0)
+                        val totalChunks = payload.optInt("totalChunks", 1)
+                        val chunkData = payload.optString("chunkData", "")
+
+                        if (memberId > 0 && chunkData.isNotEmpty()) {
+                            val chunksMap = incomingPhotoChunks.getOrPut(photoId) { ConcurrentHashMap() }
+                            chunksMap[chunkIndex] = chunkData
+
+                            if (chunksMap.size >= totalChunks) {
+                                val sb = StringBuilder()
+                                for (i in 0 until totalChunks) {
+                                    sb.append(chunksMap[i] ?: "")
+                                }
+                                val fullPhotoUri = sb.toString()
+                                incomingPhotoChunks.remove(photoId)
+
+                                if (fullPhotoUri.isNotBlank()) {
+                                    synchronized(memberPhotoUpdateListeners) {
+                                        memberPhotoUpdateListeners.forEach { it(memberId, fullPhotoUri) }
+                                    }
+                                }
                             }
                         }
                     }
@@ -649,6 +698,25 @@ class FirebaseFirestoreService(context: Context? = null) {
                         chatClearListeners.forEach { it() }
                     }
                 }
+                "DONATION_GOAL_UPDATE" -> {
+                    val goal = payload?.optDouble("goal", 250000.0) ?: root.optDouble("goal", 250000.0)
+                    if (goal > 0) {
+                        saveDonationGoal(goal)
+                        synchronized(donationGoalListeners) {
+                            donationGoalListeners.forEach { it(goal) }
+                        }
+                    }
+                }
+                "CLEAR_EXPENSES" -> {
+                    synchronized(expenseClearListeners) {
+                        expenseClearListeners.forEach { it() }
+                    }
+                }
+                "CLEAR_DONATIONS" -> {
+                    synchronized(donationClearListeners) {
+                        donationClearListeners.forEach { it() }
+                    }
+                }
                 "CLEAR_ALL_DATA" -> {
                     val ts = if (eventTimestamp > 0) eventTimestamp else System.currentTimeMillis()
                     saveDataClearedTimestamp(ts)
@@ -813,6 +881,56 @@ class FirebaseFirestoreService(context: Context? = null) {
         return null
     }
 
+    fun listenToClearExpenses(onClearExpenses: () -> Unit) {
+        synchronized(expenseClearListeners) {
+            expenseClearListeners.add(onClearExpenses)
+        }
+    }
+
+    fun listenToClearDonations(onClearDonations: () -> Unit) {
+        synchronized(donationClearListeners) {
+            donationClearListeners.add(onClearDonations)
+        }
+    }
+
+    fun listenToDonationGoal(onGoalUpdated: (Double) -> Unit): ListenerRegistration? {
+        synchronized(donationGoalListeners) {
+            donationGoalListeners.add(onGoalUpdated)
+        }
+        return null
+    }
+
+    suspend fun syncDonationGoalToCloud(goal: Double) {
+        withContext(Dispatchers.IO) {
+            saveDonationGoal(goal)
+            val json = JSONObject().apply {
+                put("goal", goal)
+                put("timestamp", System.currentTimeMillis())
+            }
+            broadcastEvent("DONATION_GOAL_UPDATE", json)
+        }
+    }
+
+    fun getSavedDonationGoal(): Double {
+        return try {
+            appContext?.getSharedPreferences("tts_sync_prefs", Context.MODE_PRIVATE)
+                ?.getString("donation_goal_val", "250000.0")?.toDoubleOrNull() ?: 250000.0
+        } catch (e: Exception) {
+            250000.0
+        }
+    }
+
+    private fun saveDonationGoal(goal: Double) {
+        try {
+            appContext?.getSharedPreferences("tts_sync_prefs", Context.MODE_PRIVATE)
+                ?.edit()
+                ?.putString("donation_goal_val", goal.toString())
+                ?.apply()
+        } catch (e: Exception) {
+            Log.v(TAG, "saveDonationGoal note: ${e.message}")
+        }
+    }
+
     fun listenToChat(channelId: String, onChatUpdated: (List<ChatMessage>) -> Unit): ListenerRegistration? {
         val list = chatListeners.getOrPut(channelId) { mutableListOf() }
         synchronized(list) {
@@ -864,11 +982,45 @@ class FirebaseFirestoreService(context: Context? = null) {
     suspend fun syncMemberPhotoToCloud(memberId: Long, photoUri: String?) {
         withContext(Dispatchers.IO) {
             try {
-                val json = JSONObject().apply {
-                    put("memberId", memberId)
-                    put("photoUri", photoUri?.trim() ?: "")
+                val cleanPhoto = photoUri?.trim() ?: ""
+                if (cleanPhoto.isBlank()) {
+                    val json = JSONObject().apply {
+                        put("memberId", memberId)
+                        put("photoUri", "")
+                    }
+                    broadcastEvent("MEMBER_PHOTO_UPDATE", json)
+                    return@withContext
                 }
-                broadcastEvent("MEMBER_PHOTO_UPDATE", json)
+
+                // If small enough (fits within single packet topic limit), send as single atomic packet
+                if (cleanPhoto.length <= 3600) {
+                    val json = JSONObject().apply {
+                        put("memberId", memberId)
+                        put("photoUri", cleanPhoto)
+                    }
+                    broadcastEvent("MEMBER_PHOTO_UPDATE", json)
+                } else {
+                    // Send chunked packets so network / ntfy message size limits (4KB) are never exceeded
+                    val chunkSize = 2000
+                    val totalChunks = (cleanPhoto.length + chunkSize - 1) / chunkSize
+                    val photoId = "photo_${memberId}_${System.currentTimeMillis()}"
+
+                    for (i in 0 until totalChunks) {
+                        val start = i * chunkSize
+                        val end = minOf(start + chunkSize, cleanPhoto.length)
+                        val chunk = cleanPhoto.substring(start, end)
+
+                        val chunkJson = JSONObject().apply {
+                            put("memberId", memberId)
+                            put("photoId", photoId)
+                            put("chunkIndex", i)
+                            put("totalChunks", totalChunks)
+                            put("chunkData", chunk)
+                        }
+                        broadcastEvent("MEMBER_PHOTO_CHUNK", chunkJson)
+                        delay(50) // slight spacing between chunks
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "syncMemberPhotoToCloud error: ${e.message}")
             }
@@ -878,6 +1030,12 @@ class FirebaseFirestoreService(context: Context? = null) {
     // --- SYNC ACTIONS TO CLOUD ---
     suspend fun syncMemberToCloud(member: Member) {
         withContext(Dispatchers.IO) {
+            val photoToEmbed = if ((member.photoUri?.length ?: 0) <= 3600) {
+                member.photoUri?.trim() ?: ""
+            } else {
+                "" // Exceeds single packet limit; syncs reliably via syncMemberPhotoToCloud
+            }
+
             val json = JSONObject().apply {
                 put("id", member.id)
                 put("memberCode", member.memberCode)
@@ -895,9 +1053,14 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("isBestPerformer", member.isBestPerformer)
                 put("bestPerformerBadge", member.bestPerformerBadge ?: "")
                 put("photoResName", member.photoResName ?: "")
-                put("photoUri", member.photoUri?.trim() ?: "")
+                put("photoUri", photoToEmbed)
             }
             broadcastEvent("MEMBER_UPSERT", json)
+
+            // If member has photoUri, also sync it via photo channel for 100% guarantee
+            if (!member.photoUri.isNullOrBlank()) {
+                syncMemberPhotoToCloud(member.id, member.photoUri)
+            }
         }
     }
 

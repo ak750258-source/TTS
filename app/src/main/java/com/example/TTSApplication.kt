@@ -10,7 +10,7 @@ class TTSApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d("TTSApplication", "Application started - Initializing 24/7 Live Cloud Push Engine")
+        Log.d("TTSApplication", "Application started")
 
         try {
             // 1. Create Notification Channels for Chanda, Chat & Notices
@@ -18,10 +18,7 @@ class TTSApplication : Application() {
 
             // 2. Initialize Real-Time Cloud Service with Context
             FirebaseFirestoreService.getInstance(this).setContext(this)
-
-            // 3. Start Background Sync Service safely
-            TTSBackgroundSyncService.startService(this)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e("TTSApplication", "Startup initialization warning: ${e.message}")
         }
     }

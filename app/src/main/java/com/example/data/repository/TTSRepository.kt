@@ -37,11 +37,13 @@ class TTSRepository(
         val list = ttsDao.getAllMembersList()
         list.forEach { member ->
             firestoreService.syncMemberToCloud(member)
+            kotlinx.coroutines.delay(25)
         }
     }
 
     suspend fun triggerFullCloudSync() {
         firestoreService.fetchCatchupEvents()
+        firestoreService.requestDataSync()
         syncAllMembersToCloud()
     }
 
@@ -51,6 +53,10 @@ class TTSRepository(
     }
 
     private fun startCloudSync() {
+        // Initial catchup and sync request
+        firestoreService.fetchCatchupEvents()
+        firestoreService.requestDataSync()
+
         // Sync Members from Cloud
         firestoreService.listenToMembers(
             onMembersUpdated = { cloudMembers ->
@@ -194,37 +200,59 @@ class TTSRepository(
             }
         }
 
+        // Real-time Clear Expenses across all devices
+        firestoreService.listenToClearExpenses {
+            repositoryScope.launch {
+                ttsDao.clearAllExpenses()
+            }
+        }
+
+        // Real-time Clear Donations across all devices
+        firestoreService.listenToClearDonations {
+            repositoryScope.launch {
+                ttsDao.clearAllDonations()
+            }
+        }
+
         // Listen for sync request from any newly joined device and sync all database records
         firestoreService.listenToSyncRequest {
             repositoryScope.launch {
-                val docs = ttsDao.getAllDocumentsList()
-                docs.forEach { d ->
-                    firestoreService.syncDocumentToCloud(d)
-                }
+                firestoreService.syncDonationGoalToCloud(firestoreService.getSavedDonationGoal())
 
                 val members = ttsDao.getAllMembersList()
                 members.forEach { m ->
                     firestoreService.syncMemberToCloud(m)
-                }
-
-                val notices = ttsDao.getAllNoticesList()
-                notices.forEach { n ->
-                    firestoreService.syncNoticeToCloud(n)
+                    kotlinx.coroutines.delay(20)
                 }
 
                 val donations = ttsDao.getAllDonationsList()
                 donations.forEach { don ->
                     firestoreService.syncDonationToCloud(don)
-                }
-
-                val meetings = ttsDao.getAllMeetingsList()
-                meetings.forEach { mtg ->
-                    firestoreService.syncMeetingToCloud(mtg)
+                    kotlinx.coroutines.delay(20)
                 }
 
                 val expenses = ttsDao.getAllExpensesList()
                 expenses.forEach { exp ->
                     firestoreService.syncExpenseToCloud(exp)
+                    kotlinx.coroutines.delay(20)
+                }
+
+                val notices = ttsDao.getAllNoticesList()
+                notices.forEach { n ->
+                    firestoreService.syncNoticeToCloud(n)
+                    kotlinx.coroutines.delay(20)
+                }
+
+                val meetings = ttsDao.getAllMeetingsList()
+                meetings.forEach { mtg ->
+                    firestoreService.syncMeetingToCloud(mtg)
+                    kotlinx.coroutines.delay(20)
+                }
+
+                val docs = ttsDao.getAllDocumentsList()
+                docs.forEach { d ->
+                    firestoreService.syncDocumentToCloud(d)
+                    kotlinx.coroutines.delay(20)
                 }
             }
         }
@@ -476,5 +504,18 @@ class TTSRepository(
         ttsDao.clearAllDocuments()
         ttsDao.clearAllMembers()
         firestoreService.clearAllAppCloudData()
+    }
+
+    // Donation Target / Goal Sync
+    fun listenToDonationGoal(onGoalUpdated: (Double) -> Unit) {
+        firestoreService.listenToDonationGoal(onGoalUpdated)
+    }
+
+    suspend fun syncDonationGoal(goal: Double) {
+        firestoreService.syncDonationGoalToCloud(goal)
+    }
+
+    fun getSavedDonationGoal(): Double {
+        return firestoreService.getSavedDonationGoal()
     }
 }

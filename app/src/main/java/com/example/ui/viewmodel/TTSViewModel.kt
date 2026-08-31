@@ -236,6 +236,19 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = 0.0
     )
 
+    // Live real-time Donation Goal (चंदा संग्रह लक्ष्य - Admin Controlled & Synced across all devices)
+    private val _donationGoal = MutableStateFlow(repository.getSavedDonationGoal())
+    val donationGoal: StateFlow<Double> = _donationGoal.asStateFlow()
+
+    fun updateDonationGoal(newGoal: Double) {
+        if (newGoal <= 0) return
+        viewModelScope.launch {
+            _donationGoal.value = newGoal
+            repository.syncDonationGoal(newGoal)
+            showSnackbar("🎯 चंदा संग्रह लक्ष्य ₹${String.format(Locale.getDefault(), "%,.0f", newGoal)} सफलतापूर्वक सुरक्षित किया गया और सभी डिवाइस पर लाइव अपडेट हो गया!")
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val currentChannelMessages: StateFlow<List<ChatMessage>> = _selectedChatChannel
         .flatMapLatest { channelId ->
@@ -767,6 +780,13 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
+        // Listen for real-time donation goal changes synced from other devices/admin
+        repository.listenToDonationGoal { cloudGoal ->
+            if (cloudGoal > 0) {
+                _donationGoal.value = cloudGoal
+            }
+        }
+
         // Automatically load and lock the saved profile for this device
         viewModelScope.launch {
             try {

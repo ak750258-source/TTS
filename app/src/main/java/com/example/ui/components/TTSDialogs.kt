@@ -63,6 +63,7 @@ import androidx.compose.material3.ButtonDefaults
 import coil.compose.AsyncImage
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -596,7 +597,7 @@ fun AddMemberDialog(
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val base64 = ImageUtils.uriToBase64(context, uri, maxDimension = 140, quality = 55)
+                val base64 = ImageUtils.uriToBase64(context, uri)
                 if (base64 != null) {
                     selectedPhotoUri = base64
                 }
@@ -1142,7 +1143,7 @@ fun UpdateMemberPhotoDialog(
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val base64 = ImageUtils.uriToBase64(context, uri, maxDimension = 140, quality = 55)
+                val base64 = ImageUtils.uriToBase64(context, uri)
                 if (base64 != null) {
                     photoUri = base64
                 }
@@ -1281,7 +1282,7 @@ fun EditMemberDialog(
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val base64 = ImageUtils.uriToBase64(context, uri, maxDimension = 140, quality = 55)
+                val base64 = ImageUtils.uriToBase64(context, uri)
                 if (base64 != null) {
                     photoUri = base64
                 }
@@ -3568,6 +3569,184 @@ fun EditExpenseDialog(
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
                         Text("संशोधित करें (Update)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SetDonationGoalDialog(
+    currentGoal: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (newGoal: Double) -> Unit
+) {
+    var goalText by remember { mutableStateOf(if (currentGoal > 0) currentGoal.toLong().toString() else "250000") }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+    val quickGoals = listOf(100000L, 200000L, 250000L, 500000L, 1000000L)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header with Admin Security Badge
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(SoftMintContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AdminPanelSettings,
+                                contentDescription = null,
+                                tint = PrimaryGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "चंदा लक्ष्य निर्धारित करें",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp,
+                                color = TextPrimaryGreen
+                            )
+                            Text(
+                                text = "🔒 एडमिन सुरक्षित नियंत्रण • लाइव सिंक",
+                                fontSize = 11.sp,
+                                color = TextSecondaryGreen
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "बंद करें", tint = Color.Gray)
+                    }
+                }
+
+                Divider(color = BorderLightGreen)
+
+                // Info Box
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFF0FDF4))
+                        .border(1.dp, BorderLightGreen, RoundedCornerShape(10.dp))
+                        .padding(10.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "💡 वर्तमान निर्धारित लक्ष्य: ₹${String.format(java.util.Locale.getDefault(), "%,.0f", currentGoal)}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = PineGreenDark
+                        )
+                        Text(
+                            text = "यह लक्ष्य बदलने पर तुरंत सभी सदस्यों व दर्शकों के मोबाइल पर लाइव अपडेट हो जाएगा।",
+                            fontSize = 11.sp,
+                            color = TextSecondaryGreen
+                        )
+                    }
+                }
+
+                // Quick Target Selection
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "त्वरित लक्ष्य चुनें:",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimaryGreen
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 2.dp)
+                    ) {
+                        items(quickGoals) { g ->
+                            val isSelected = goalText == g.toString()
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) PrimaryGreen else SoftMintContainer,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        goalText = g.toString()
+                                        errorMsg = null
+                                    }
+                            ) {
+                                Text(
+                                    text = "₹${String.format(java.util.Locale.getDefault(), "%,d", g)}",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color.White else PineGreenDark,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Custom Amount Input
+                OutlinedTextField(
+                    value = goalText,
+                    onValueChange = {
+                        if (it.all { char -> char.isDigit() }) {
+                            goalText = it
+                            errorMsg = null
+                        }
+                    },
+                    label = { Text("नया कुल चंदा संग्रह लक्ष्य (₹) *") },
+                    placeholder = { Text("उदा. 250000") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    isError = errorMsg != null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (errorMsg != null) {
+                    Text(text = errorMsg!!, color = Color.Red, fontSize = 12.sp)
+                }
+
+                // Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val newGoal = goalText.toDoubleOrNull() ?: 0.0
+                            if (newGoal <= 0) {
+                                errorMsg = "कृपया एक वैध लक्ष्य राशि (₹) दर्ज करें"
+                                return@Button
+                            }
+                            onConfirm(newGoal)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("लक्ष्य सुरक्षित करें व लाइव सिंक करें", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }

@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Groups
@@ -118,15 +119,21 @@ fun HomeScreen(
     documents: List<OfficialDocument>,
     donations: List<Donation>,
     totalDonations: Double,
+    expenses: List<com.example.data.model.Expense> = emptyList(),
+    totalExpenses: Double = 0.0,
+    remainingBalance: Double = 0.0,
+    donationGoal: Double = 250000.0,
     activeMember: Member?,
     isAdminLoggedIn: Boolean,
     onlineCandidateIds: Set<Long> = emptySet(),
     onOpenAdminLogin: () -> Unit,
     onLogoutAdmin: () -> Unit,
+    onOpenEditGoal: () -> Unit = {},
     onNavigateToTab: (AppTab) -> Unit,
     onOpenAddMember: () -> Unit,
     onOpenAddMeeting: () -> Unit,
     onOpenAddDonation: () -> Unit,
+    onOpenAddExpense: () -> Unit = {},
     onOpenAddNotice: () -> Unit,
     onOpenAddDocument: () -> Unit = {},
     onSelectMemberForID: (Member) -> Unit,
@@ -140,8 +147,8 @@ fun HomeScreen(
     val upcomingMeeting = meetings.firstOrNull { it.status == "Upcoming" }
     val urgentNotice = notices.firstOrNull { it.priority == "HIGH" || it.isPinned } ?: notices.firstOrNull()
 
-    val donationGoal = 250000.0
-    val progress = (totalDonations / donationGoal).toFloat().coerceIn(0f, 1f)
+    val safeGoal = if (donationGoal > 0) donationGoal else 250000.0
+    val progress = (totalDonations / safeGoal).toFloat().coerceIn(0f, 1f)
 
     LazyColumn(
         modifier = modifier
@@ -883,17 +890,86 @@ fun HomeScreen(
                         verticalAlignment = Alignment.Bottom
                     ) {
                         Column {
-                            Text("अब तक प्राप्त कुल दान", fontSize = 11.sp, color = TextSecondaryGreen)
+                            Text("कुल चंदा संग्रह", fontSize = 11.sp, color = TextSecondaryGreen)
                             Text(
                                 text = "₹${String.format("%,.0f", totalDonations)}",
-                                fontSize = 22.sp,
+                                fontSize = 20.sp,
                                 fontWeight = FontWeight.Black,
                                 color = TextPrimaryGreen
                             )
                         }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("कुल खर्च", fontSize = 11.sp, color = Color(0xFFDC2626))
+                            Text(
+                                text = "₹${String.format("%,.0f", totalExpenses)}",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFDC2626)
+                            )
+                        }
+
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("लक्ष्य: ₹2,50,000", fontSize = 11.sp, color = TextSecondaryGreen)
-                            Text("${(progress * 100).toInt()}% पूर्ण", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+                            Text("शेष बचत (Balance)", fontSize = 11.sp, color = EmeraldGreen, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "₹${String.format("%,.0f", remainingBalance)}",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                color = EmeraldGreen
+                            )
+                        }
+                    }
+
+                    // Goal & Progress Info Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "🎯 लक्ष्य: ₹${String.format(java.util.Locale.getDefault(), "%,.0f", safeGoal)}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimaryGreen
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "• ${(progress * 100).toInt()}% पूर्ण",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = PrimaryGreen
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isAdminLoggedIn) PrimaryGreen else Color.White,
+                            border = if (isAdminLoggedIn) null else BorderStroke(1.dp, BorderLightGreen),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable {
+                                    if (isAdminLoggedIn) onOpenEditGoal() else onOpenAdminLogin()
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isAdminLoggedIn) Icons.Default.Edit else Icons.Default.Lock,
+                                    contentDescription = "लक्ष्य बदलें",
+                                    tint = if (isAdminLoggedIn) Color.White else PrimaryGreen,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (isAdminLoggedIn) "लक्ष्य बदलें" else "लक्ष्य (Admin)",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isAdminLoggedIn) Color.White else PrimaryGreen
+                                )
+                            }
                         }
                     }
 
@@ -909,7 +985,7 @@ fun HomeScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         OutlinedButton(
                             onClick = {
@@ -923,7 +999,7 @@ fun HomeScreen(
                             },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Google Pay / PhonePe दान", fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                            Text("UPI दान", fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
@@ -931,7 +1007,15 @@ fun HomeScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("चंदा दर्ज करें", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("+ चंदा", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = onOpenAddExpense,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("+ खर्च", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
