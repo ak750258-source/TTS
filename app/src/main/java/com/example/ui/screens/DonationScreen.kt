@@ -438,6 +438,49 @@ fun DonationScreen(
                             color = PrimaryGreen,
                             trackColor = BorderLightGreen
                         )
+
+                        // Quick Share Budget to WhatsApp Button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    com.example.util.ShareHelper.shareBudgetReport(
+                                        context = context,
+                                        totalDonations = totalDonations,
+                                        totalExpenses = totalExpenses,
+                                        donorCount = approvedDonations.size,
+                                        expenseCount = expenses.size,
+                                        toWhatsApp = true
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("WhatsApp बजट रिपोर्ट", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    com.example.util.ShareHelper.shareBudgetReport(
+                                        context = context,
+                                        totalDonations = totalDonations,
+                                        totalExpenses = totalExpenses,
+                                        donorCount = approvedDonations.size,
+                                        expenseCount = expenses.size,
+                                        toWhatsApp = false
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = PrimaryGreen)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("रिपोर्ट शेयर करें", fontSize = 11.sp, color = PrimaryGreen)
+                            }
+                        }
                     }
                 }
             }
@@ -1011,16 +1054,22 @@ fun DonationScreen(
                                         }
                                     }
 
+                                    IconButton(
+                                        onClick = {
+                                            com.example.util.ShareHelper.shareDonationReceipt(context, donation, toWhatsApp = true)
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Share, contentDescription = "WhatsApp रसीद", tint = Color(0xFF25D366), modifier = Modifier.size(16.dp))
+                                    }
+
                                     TextButton(
                                         onClick = {
-                                            copyToClipboard(
-                                                context,
-                                                "Donation Receipt",
-                                                "12 रबी-उल-अव्वल TTS कमेटी चंदा रसीद:\nदानदाता: ${donation.donorName}\nराशि: ₹${donation.amount}\nमद: ${donation.purpose}\nरसीद संख्या: ${donation.transactionRef}\nतारीख: ${donation.date}\nसत्यापन: आधिकारिक रूप से सत्यापित ✓\nUPI: ak750258@icici"
-                                            )
-                                        }
+                                            com.example.util.ShareHelper.shareDonationReceipt(context, donation, toWhatsApp = false)
+                                        },
+                                        modifier = Modifier.height(28.dp)
                                     ) {
-                                        Text("रसीद साझा करें", fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                                        Text("रसीद शेयर करें", fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
                                     }
 
                                     if (isAdminLoggedIn) {
@@ -1413,12 +1462,40 @@ fun DonationScreen(
                         }
                     }
 
-                    Button(
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                com.example.util.ShareHelper.shareDonationReceipt(context, pDon, toWhatsApp = true)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("WhatsApp रसीद", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                com.example.util.ShareHelper.shareDonationReceipt(context, pDon, toWhatsApp = false)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("शेयर रसीद", fontSize = 11.sp, color = Color.White)
+                        }
+                    }
+
+                    OutlinedButton(
                         onClick = { selectedProofDonation = null },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("बंद करें (Close)", color = Color.White)
+                        Text("बंद करें (Close)")
                     }
                 }
             }

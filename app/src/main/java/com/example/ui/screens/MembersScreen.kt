@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Work
@@ -512,6 +513,19 @@ fun MemberRosterCard(
                             .testTag("edit_member_btn_${member.id}")
                     ) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit Member", tint = PrimaryGreen, modifier = Modifier.size(17.dp))
+                    }
+
+                    // WhatsApp Action Icon
+                    IconButton(
+                        onClick = {
+                            com.example.util.ShareHelper.shareMemberIDCard(context, member, toWhatsApp = true)
+                        },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE8F5E9))
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "WhatsApp Share", tint = Color(0xFF25D366), modifier = Modifier.size(17.dp))
                     }
 
                     // Call Action Icon

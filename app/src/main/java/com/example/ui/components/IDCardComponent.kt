@@ -187,7 +187,7 @@ fun MemberIDCardView(
 
             Button(
                 onClick = {
-                    Toast.makeText(context, "${member.fullName} का 12 रबी-उल-अव्वल ID कार्ड डाउनलोड हो गया", Toast.LENGTH_SHORT).show()
+                    com.example.util.IDCardGenerator.saveIDCardToGallery(context, member)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                 modifier = Modifier.testTag("download_id_card_button")
@@ -199,7 +199,7 @@ fun MemberIDCardView(
                     tint = Color.White
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("कार्ड सेव", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("कार्ड डाउनलोड", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

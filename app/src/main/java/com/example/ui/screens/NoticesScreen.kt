@@ -277,13 +277,24 @@ fun NoticesScreen(
                                     fontWeight = FontWeight.Medium
                                 )
 
-                                IconButton(
-                                    onClick = {
-                                        copyToClipboard(context, "TTS Notice", "${notice.title}\n\n${notice.content}\n\n- ${notice.issuedBy}")
-                                    },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(Icons.Default.Share, contentDescription = "Share", tint = PrimaryGreen, modifier = Modifier.size(16.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = {
+                                            com.example.util.ShareHelper.shareNotice(context, notice, toWhatsApp = true)
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Share, contentDescription = "WhatsApp Share", tint = Color(0xFF25D366), modifier = Modifier.size(16.dp))
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            com.example.util.ShareHelper.shareNotice(context, notice, toWhatsApp = false)
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Share, contentDescription = "Share", tint = PrimaryGreen, modifier = Modifier.size(16.dp))
+                                    }
                                 }
                             }
                         }

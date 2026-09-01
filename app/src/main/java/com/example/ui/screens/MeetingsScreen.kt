@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -709,12 +710,32 @@ fun MeetingsScheduleSection(
                                 Text(meeting.type, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PineGreenDark)
                             }
 
-                            if (isAdminLoggedIn) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(
-                                    onClick = { onDeleteMeeting(meeting.id) },
+                                    onClick = {
+                                        com.example.util.ShareHelper.shareMeeting(context, meeting, toWhatsApp = true)
+                                    },
                                     modifier = Modifier.size(28.dp)
                                 ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Share, contentDescription = "WhatsApp Share", tint = Color(0xFF25D366), modifier = Modifier.size(16.dp))
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        com.example.util.ShareHelper.shareMeeting(context, meeting, toWhatsApp = false)
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Share, contentDescription = "Share", tint = PrimaryGreen, modifier = Modifier.size(16.dp))
+                                }
+
+                                if (isAdminLoggedIn) {
+                                    IconButton(
+                                        onClick = { onDeleteMeeting(meeting.id) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red, modifier = Modifier.size(16.dp))
+                                    }
                                 }
                             }
                         }

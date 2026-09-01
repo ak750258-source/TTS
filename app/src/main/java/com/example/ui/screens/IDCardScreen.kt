@@ -329,33 +329,57 @@ fun IDCardScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    copyToClipboard(
-                                        context,
-                                        "12 Rabi Ul Awwal ID Card",
-                                        "TTS 12 रबी-उल-अव्वल कमेटी पहचान पत्र:\nनाम: ${currentMember.fullName}\nपद: ${currentMember.designation}\nआईडी: ${currentMember.memberCode}\nफोन: ${currentMember.phoneNumber}\nचंदा UPI: ak750258@icici"
-                                    )
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("विवरण कॉपी करें", fontSize = 11.sp)
-                            }
-
                             Button(
                                 onClick = {
-                                    Toast.makeText(context, "${currentMember.fullName} का ID कार्ड प्रिंट हेतु तैयार है", Toast.LENGTH_SHORT).show()
+                                    com.example.util.IDCardGenerator.saveIDCardToGallery(context, currentMember)
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("प्रिंट / PDF", fontSize = 11.sp, color = Color.White)
+                                Text("कार्ड डाउनलोड", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    com.example.util.IDCardGenerator.printOrExportPDF(context, currentMember)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("प्रिंट / PDF सेव", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    com.example.util.ShareHelper.shareMemberIDCard(context, currentMember, toWhatsApp = true)
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF25D366))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("WhatsApp भेजें", fontSize = 11.sp, color = PineGreenDark, fontWeight = FontWeight.Bold)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    com.example.util.ShareHelper.shareMemberIDCard(context, currentMember, toWhatsApp = false)
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("कार्ड शेयर करें", fontSize = 11.sp)
                             }
                         }
                     }

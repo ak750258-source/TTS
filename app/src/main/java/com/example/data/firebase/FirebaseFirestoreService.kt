@@ -53,7 +53,7 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     companion object {
         private const val TAG = "CloudSyncEngine"
-        private const val SYNC_TOPIC = "tts_12rabiulawwal_live_sync_v5"
+        private const val SYNC_TOPIC = "tts_12rabiulawwal_live_sync_v6"
         private const val BASE_URL = "https://ntfy.sh/$SYNC_TOPIC"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val DEVICE_ID = UUID.randomUUID().toString()
@@ -90,16 +90,17 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     private val httpClient = OkHttpClient.Builder()
         .dns(ipv4PrioritizedDns)
-        .connectTimeout(12, TimeUnit.SECONDS)
-        .writeTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
     private val streamingClient = OkHttpClient.Builder()
         .dns(ipv4PrioritizedDns)
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS) // infinite for SSE stream
+        .pingInterval(15, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -185,6 +186,7 @@ class FirebaseFirestoreService(context: Context? = null) {
         loadClearedTimestamps()
         startSseEventListener()
         startCatchupPoll()
+        startFastPoller()
         startPeriodicSyncHeartbeat()
     }
 
@@ -324,6 +326,33 @@ class FirebaseFirestoreService(context: Context? = null) {
         fetchCatchupEvents()
     }
 
+    private fun startFastPoller() {
+        serviceScope.launch {
+            // Give initial SSE stream a moment to connect
+            delay(3000)
+            while (isActive) {
+                try {
+                    val pollUrl = "$BASE_URL/json?poll=1&since=2m"
+                    val request = Request.Builder().url(pollUrl).build()
+                    httpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            val lines = body.split("\n")
+                            for (line in lines) {
+                                if (line.isNotBlank()) {
+                                    parseAndDispatchRawJsonLine(line)
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.v(TAG, "Fast poller note: ${e.message}")
+                }
+                delay(3500)
+            }
+        }
+    }
+
     private fun parseAndDispatchRawJsonLine(line: String) {
         var trimmed = line.trim()
         if (trimmed.startsWith("data:")) {
@@ -406,12 +435,6 @@ class FirebaseFirestoreService(context: Context? = null) {
             }
 
             val eventTimestamp = root.optLong("timestamp", 0L)
-
-            // 1. Ignore events that occurred before total data wipe timestamp
-            if (lastDataClearedTimestamp > 0L && eventTimestamp in 1..lastDataClearedTimestamp && eventType != "CLEAR_ALL_DATA") {
-                Log.d(TAG, "Skipping pre-clear data event ($eventType, timestamp=$eventTimestamp <= $lastDataClearedTimestamp)")
-                return
-            }
 
             when (eventType) {
                 "CHAT_MESSAGE" -> {
