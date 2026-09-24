@@ -26,16 +26,16 @@ object ImageUtils {
     }
 
     /**
-     * Converts an image Uri (from Gallery / Camera) to an ultra-compact, compressed Base64 Data URI string.
-     * Dimensions are scaled to 80x80 px at quality 45% (~900-1300 bytes / ~1200-1700 Base64 chars),
-     * which guarantees instant rendering, low memory footprint, and 100% reliable single-packet transmission
-     * over real-time cloud sync to all connected devices without exceeding network limits.
+     * Converts an image Uri (from Camera / Gallery) to a crisp, high-definition compressed Base64 Data URI string.
+     * Dimensions are scaled to max 300x300 px at quality 75% with ARGB_8888 color config.
+     * This provides sharp, vivid face details on high-resolution smartphone screens and ID cards,
+     * with zero blurriness, while staying compact (~10-15 KB) for instant real-time cloud sync.
      */
     suspend fun uriToBase64(
         context: Context,
         uri: Uri,
-        maxDimension: Int = 80,
-        quality: Int = 45
+        maxDimension: Int = 300,
+        quality: Int = 75
     ): String? = withContext(Dispatchers.IO) {
         try {
             val contentResolver = context.contentResolver
@@ -52,23 +52,23 @@ object ImageUtils {
             val srcHeight = options.outHeight
             if (srcWidth <= 0 || srcHeight <= 0) return@withContext null
 
-            // 2. Compute sample size
+            // 2. Compute sample size (keep high detail)
             var inSampleSize = 1
             val maxSide = maxOf(srcWidth, srcHeight)
-            while ((maxSide / inSampleSize) > maxDimension * 2) {
+            while ((maxSide / (inSampleSize * 2)) >= maxDimension) {
                 inSampleSize *= 2
             }
 
-            // 3. Decode sampled bitmap
+            // 3. Decode sampled bitmap with full 32-bit ARGB_8888 color for clean, crisp images
             val decodeOptions = BitmapFactory.Options().apply {
                 this.inSampleSize = inSampleSize.coerceAtLeast(1)
-                inPreferredConfig = Bitmap.Config.RGB_565
+                inPreferredConfig = Bitmap.Config.ARGB_8888
             }
             inputStream = contentResolver.openInputStream(uri) ?: return@withContext null
             val sampledBitmap: Bitmap = BitmapFactory.decodeStream(inputStream, null, decodeOptions) ?: return@withContext null
             inputStream?.close()
 
-            // 4. Handle EXIF Rotation
+            // 4. Handle EXIF Rotation from Camera/Gallery
             var rotationAngle = 0f
             try {
                 contentResolver.openInputStream(uri)?.use { exifStream ->
@@ -99,12 +99,12 @@ object ImageUtils {
                 sampledBitmap
             }
 
-            // 5. Scale down to exact maxDimension keeping aspect ratio
+            // 5. Scale down to exact maxDimension keeping aspect ratio with bilinear filtering
             val scale = min(
                 maxDimension.toFloat() / rotatedBitmap.width,
                 maxDimension.toFloat() / rotatedBitmap.height
             )
-            var finalBitmap: Bitmap = if (scale < 1.0f) {
+            val finalBitmap: Bitmap = if (scale < 1.0f) {
                 val destWidth = (rotatedBitmap.width * scale).toInt().coerceAtLeast(1)
                 val destHeight = (rotatedBitmap.height * scale).toInt().coerceAtLeast(1)
                 Bitmap.createScaledBitmap(rotatedBitmap, destWidth, destHeight, true)
@@ -112,35 +112,15 @@ object ImageUtils {
                 rotatedBitmap
             }
 
-            // 6. Compress to JPEG and encode to Base64 Data URI
-            var outputStream = ByteArrayOutputStream()
-            var currentQuality = quality
-            finalBitmap.compress(Bitmap.CompressFormat.JPEG, currentQuality, outputStream)
-            var byteArray = outputStream.toByteArray()
-
-            // Ensure payload stays under 1400 bytes so Base64 length is always ~1800 chars maximum
-            if (byteArray.size > 1400) {
-                outputStream = ByteArrayOutputStream()
-                val targetDim = 68
-                val smallerScale = min(
-                    targetDim.toFloat() / finalBitmap.width,
-                    targetDim.toFloat() / finalBitmap.height
-                )
-                val scaledDown = Bitmap.createScaledBitmap(
-                    finalBitmap,
-                    (finalBitmap.width * smallerScale).toInt().coerceAtLeast(1),
-                    (finalBitmap.height * smallerScale).toInt().coerceAtLeast(1),
-                    true
-                )
-                scaledDown.compress(Bitmap.CompressFormat.JPEG, 38, outputStream)
-                byteArray = outputStream.toByteArray()
-                finalBitmap = scaledDown
-            }
+            // 6. Compress to JPEG with high quality (crisp and clear)
+            val outputStream = ByteArrayOutputStream()
+            finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality.coerceIn(50, 95), outputStream)
+            val byteArray = outputStream.toByteArray()
 
             val base64String = Base64.encodeToString(byteArray, Base64.NO_WRAP)
             val dataUri = "data:image/jpeg;base64,$base64String"
 
-            // Pre-cache bitmap in memory
+            // Pre-cache bitmap in memory for immediate flicker-free display
             memoryCache.put(dataUri, finalBitmap)
 
             dataUri
@@ -148,6 +128,20 @@ object ImageUtils {
             e.printStackTrace()
             null
         }
+    }
+
+    /**
+     * Creates a temporary image Uri for Camera capture using FileProvider.
+     */
+    fun createTempImageUri(context: Context): Uri {
+        val imagesDir = File(context.cacheDir, "images")
+        if (!imagesDir.exists()) imagesDir.mkdirs()
+        val file = File(imagesDir, "captured_profile_${System.currentTimeMillis()}.jpg")
+        return androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
     }
 
     fun base64ToBitmap(data: String?): Bitmap? = getBitmapFromPhotoUri(data)

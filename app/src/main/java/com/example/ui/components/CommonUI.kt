@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -229,6 +230,7 @@ fun TTSAppHeader(
     onOpenProfileSwitcher: () -> Unit,
     onSelectActiveMember: (Member) -> Unit,
     onNavigateToTab: (AppTab) -> Unit,
+    onOpenSyncShareDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -252,7 +254,9 @@ fun TTSAppHeader(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenSyncShareDialog() }
                 ) {
                     Box(
                         modifier = Modifier
@@ -292,7 +296,10 @@ fun TTSAppHeader(
                                 )
                             }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 1.dp)
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(6.dp)
@@ -301,7 +308,7 @@ fun TTSAppHeader(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Firestore लाइव क्लाउड सिंक",
+                                text = "डेटा सिंक व शेयर ⇄",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isCloudConnected) EmeraldGreen else TextSecondaryGreen
@@ -310,48 +317,70 @@ fun TTSAppHeader(
                     }
                 }
 
-                // Persona / Admin Chip
-                val currentName = activeMember?.fullName ?: allMembers.firstOrNull()?.fullName ?: "सदस्य"
-                val currentRole = activeMember?.designation ?: allMembers.firstOrNull()?.designation ?: "खादिम"
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(if (isAdminLoggedIn) SoftMintContainer else SageSurfaceVariant)
-                        .border(1.dp, if (isAdminLoggedIn) EmeraldGreen else BorderLightGreen, RoundedCornerShape(18.dp))
-                        .clickable { onOpenProfileSwitcher() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    // Sync icon button
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(SoftMintContainer)
+                            .clickable { onOpenSyncShareDialog() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        MemberAvatar(
-                            name = currentName,
-                            photoUri = activeMember?.photoUri,
-                            photoResName = activeMember?.photoResName,
-                            size = 26.dp,
-                            textSize = 10,
-                            colorIndex = activeMember?.avatarColorIndex ?: 0,
-                            isOnline = true,
-                            showOnlineIndicator = true
+                        Icon(
+                            imageVector = Icons.Default.Sync,
+                            contentDescription = "डेटा सिंक व शेयर",
+                            tint = PrimaryGreen,
+                            modifier = Modifier.size(18.dp)
                         )
-                        Column {
-                            Text(
-                                text = currentName.split(" ").firstOrNull() ?: "सदस्य",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimaryGreen,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                    }
+
+                    // Persona / Admin Chip
+                    val currentName = activeMember?.fullName ?: allMembers.firstOrNull()?.fullName ?: "सदस्य"
+                    val currentRole = activeMember?.designation ?: allMembers.firstOrNull()?.designation ?: "खादिम"
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(if (isAdminLoggedIn) SoftMintContainer else SageSurfaceVariant)
+                            .border(1.dp, if (isAdminLoggedIn) EmeraldGreen else BorderLightGreen, RoundedCornerShape(18.dp))
+                            .clickable { onOpenProfileSwitcher() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            MemberAvatar(
+                                name = currentName,
+                                photoUri = activeMember?.photoUri,
+                                photoResName = activeMember?.photoResName,
+                                size = 26.dp,
+                                textSize = 10,
+                                colorIndex = activeMember?.avatarColorIndex ?: 0,
+                                isOnline = true,
+                                showOnlineIndicator = true
                             )
-                            Text(
-                                text = if (isAdminLoggedIn) "👑 $currentRole" else currentRole,
-                                fontSize = 9.sp,
-                                color = PrimaryGreen,
-                                maxLines = 1
-                            )
+                            Column {
+                                Text(
+                                    text = currentName.split(" ").firstOrNull() ?: "सदस्य",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimaryGreen,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = if (isAdminLoggedIn) "👑 $currentRole" else currentRole,
+                                    fontSize = 9.sp,
+                                    color = PrimaryGreen,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }

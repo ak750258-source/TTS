@@ -198,6 +198,9 @@ interface TTSDao {
     @Query("UPDATE chat_messages SET isSeen = 1, status = 'SEEN' WHERE id IN (:ids)")
     suspend fun markMessagesSeen(ids: List<Long>)
 
+    @Query("SELECT * FROM chat_messages ORDER BY timestamp ASC")
+    suspend fun getAllChatMessagesList(): List<ChatMessage>
+
     @Query("DELETE FROM chat_messages")
     suspend fun clearAllChatMessages()
 }

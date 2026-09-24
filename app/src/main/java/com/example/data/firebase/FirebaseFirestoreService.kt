@@ -53,8 +53,10 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     companion object {
         private const val TAG = "CloudSyncEngine"
-        private const val SYNC_TOPIC = "tts_12rabiulawwal_live_sync_v6"
-        private const val BASE_URL = "https://ntfy.sh/$SYNC_TOPIC"
+        private const val PRIMARY_TOPIC = "tts_12rabiulawwal_live_sync_v6"
+        private const val BACKUP_TOPIC = "tts_committee_budaun_12rabi_v6"
+        private val SYNC_TOPICS = listOf(PRIMARY_TOPIC, BACKUP_TOPIC)
+        private const val BASE_URL = "https://ntfy.sh/$PRIMARY_TOPIC"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val DEVICE_ID = UUID.randomUUID().toString()
 
@@ -100,7 +102,7 @@ class FirebaseFirestoreService(context: Context? = null) {
         .dns(ipv4PrioritizedDns)
         .pingInterval(15, TimeUnit.SECONDS)
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.MILLISECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -165,6 +167,9 @@ class FirebaseFirestoreService(context: Context? = null) {
     private val notifiedNoticeIds = ConcurrentHashMap.newKeySet<Long>()
     private val notifiedDonationIds = ConcurrentHashMap.newKeySet<Long>()
     private val notifiedDocumentIds = ConcurrentHashMap.newKeySet<Long>()
+    private val processedEventIds = ConcurrentHashMap.newKeySet<String>()
+    @Volatile
+    private var lastPolledTimeSeconds: Long = (System.currentTimeMillis() - 120_000L) / 1000L
 
     private fun shouldNotify(
         id: Long,
@@ -241,13 +246,20 @@ class FirebaseFirestoreService(context: Context? = null) {
         }
     }
 
+    private var lastSeenSseTimestampSeconds: Long = (System.currentTimeMillis() - 60_000L) / 1000L
+
     // --- REAL-TIME SSE STREAMING CONNECTION ---
     private fun startSseEventListener() {
         serviceScope.launch {
             while (isActive) {
                 try {
+                    val sseUrl = if (lastSeenSseTimestampSeconds > 0) {
+                        "$BASE_URL/json?since=$lastSeenSseTimestampSeconds"
+                    } else {
+                        "$BASE_URL/json"
+                    }
                     val request = Request.Builder()
-                        .url("$BASE_URL/json")
+                        .url(sseUrl)
                         .build()
 
                     _isCloudConnected.value = true
@@ -287,29 +299,29 @@ class FirebaseFirestoreService(context: Context? = null) {
         serviceScope.launch {
             isCatchupSyncActive = true
             try {
-                // Fetch events from recent cache so any newly opened device catches up on all data
-                val pollUrls = listOf(
-                    "$BASE_URL/json?poll=1&since=7d",
-                    "$BASE_URL/json?poll=1&since=24h",
-                    "$BASE_URL/json?poll=1&since=12h"
-                )
-                for (pollUrl in pollUrls) {
-                    try {
-                        val request = Request.Builder().url(pollUrl).build()
-                        httpClient.newCall(request).execute().use { response ->
-                            if (response.isSuccessful) {
-                                val body = response.body?.string() ?: ""
-                                val lines = body.split("\n")
-                                for (line in lines) {
-                                    if (line.isNotBlank()) {
-                                        parseAndDispatchRawJsonLine(line)
+                // Fetch events from recent cache across all topics so any newly opened device catches up on all data
+                for (topic in SYNC_TOPICS) {
+                    val pollUrls = listOf(
+                        "https://ntfy.sh/$topic/json?poll=1&since=7d",
+                        "https://ntfy.sh/$topic/json?poll=1&since=24h"
+                    )
+                    for (pollUrl in pollUrls) {
+                        try {
+                            val request = Request.Builder().url(pollUrl).build()
+                            httpClient.newCall(request).execute().use { response ->
+                                if (response.isSuccessful) {
+                                    val body = response.body?.string() ?: ""
+                                    val lines = body.split("\n")
+                                    for (line in lines) {
+                                        if (line.isNotBlank()) {
+                                            parseAndDispatchRawJsonLine(line)
+                                        }
                                     }
                                 }
-                                return@launch
                             }
+                        } catch (netEx: Exception) {
+                            Log.v(TAG, "Catchup poll $topic url note: ${netEx.message}")
                         }
-                    } catch (netEx: Exception) {
-                        Log.v(TAG, "Catchup poll url note: ${netEx.message}")
                     }
                 }
             } catch (e: Exception) {
@@ -332,23 +344,27 @@ class FirebaseFirestoreService(context: Context? = null) {
             delay(3000)
             while (isActive) {
                 try {
-                    val pollUrl = "$BASE_URL/json?poll=1&since=2m"
-                    val request = Request.Builder().url(pollUrl).build()
-                    httpClient.newCall(request).execute().use { response ->
-                        if (response.isSuccessful) {
-                            val body = response.body?.string() ?: ""
-                            val lines = body.split("\n")
-                            for (line in lines) {
-                                if (line.isNotBlank()) {
-                                    parseAndDispatchRawJsonLine(line)
+                    val sinceParam = lastPolledTimeSeconds
+                    for (topic in SYNC_TOPICS) {
+                        val pollUrl = "https://ntfy.sh/$topic/json?poll=1&since=$sinceParam"
+                        val request = Request.Builder().url(pollUrl).build()
+                        httpClient.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val body = response.body?.string() ?: ""
+                                val lines = body.split("\n")
+                                for (line in lines) {
+                                    if (line.isNotBlank()) {
+                                        parseAndDispatchRawJsonLine(line)
+                                    }
                                 }
                             }
                         }
                     }
+                    lastPolledTimeSeconds = (System.currentTimeMillis() - 30_000L) / 1000L
                 } catch (e: Exception) {
                     Log.v(TAG, "Fast poller note: ${e.message}")
                 }
-                delay(3500)
+                delay(4000)
             }
         }
     }
@@ -364,6 +380,10 @@ class FirebaseFirestoreService(context: Context? = null) {
         if (trimmed.isEmpty() || !trimmed.startsWith("{")) return
         try {
             val sseJson = JSONObject(trimmed)
+            val sseTime = sseJson.optLong("time", 0L)
+            if (sseTime > 0) {
+                lastSeenSseTimestampSeconds = sseTime
+            }
             val event = sseJson.optString("event", "message")
             if (sseJson.has("eventType")) {
                 handleCloudEvent(trimmed)
@@ -435,14 +455,38 @@ class FirebaseFirestoreService(context: Context? = null) {
             }
 
             val eventTimestamp = root.optLong("timestamp", 0L)
+            val rawEventId = root.optString("eventId")
+            val eventId = if (rawEventId.isNotBlank()) {
+                rawEventId
+            } else {
+                val subId = payload?.optLong("id", 0L)?.takeIf { it > 0 }
+                    ?: payload?.optLong("memberId", 0L)?.takeIf { it > 0 }
+                    ?: payload?.optLong("messageId", 0L)?.takeIf { it > 0 }
+                    ?: 0L
+                "${eventType}_${subId}_${eventTimestamp}"
+            }
+
+            // Deduplicate incoming events to avoid duplicate execution loops and rate limits
+            if (!processedEventIds.add(eventId)) {
+                return
+            }
+            if (processedEventIds.size > 4000) {
+                val iterator = processedEventIds.iterator()
+                var removed = 0
+                while (iterator.hasNext() && removed < 1000) {
+                    iterator.next()
+                    iterator.remove()
+                    removed++
+                }
+            }
 
             when (eventType) {
                 "CHAT_MESSAGE" -> {
                     if (payload != null) {
                         val msg = parseChatMessage(payload)
                         if (msg != null) {
-                            // Discard message if it was sent prior to chat clear
-                            if (lastChatClearedTimestamp > 0L && msg.timestamp <= lastChatClearedTimestamp) {
+                            // Discard message if it was sent prior to chat clear (during catch-up only)
+                            if (isCatchupSyncActive && lastChatClearedTimestamp > 0L && msg.timestamp <= (lastChatClearedTimestamp - 10_000L)) {
                                 Log.d(TAG, "Skipping pre-clear chat message (${msg.id}, timestamp=${msg.timestamp} <= $lastChatClearedTimestamp)")
                                 return
                             }
@@ -461,8 +505,8 @@ class FirebaseFirestoreService(context: Context? = null) {
                                 }
                             }
 
-                            // Immediately emit read receipt / seen acknowledgment back to sender for double tick
-                            if (isFromAnotherDevice || (currentActiveMemberId > 0 && senderMemberId != currentActiveMemberId)) {
+                            // Emit read receipt only for fresh incoming live messages from other devices
+                            if (!isCatchupSyncActive && isFromAnotherDevice && (System.currentTimeMillis() - msg.timestamp < 60_000L)) {
                                 serviceScope.launch {
                                     try {
                                         val seenPayload = JSONObject().apply {
@@ -763,7 +807,11 @@ class FirebaseFirestoreService(context: Context? = null) {
     private fun broadcastEvent(eventType: String, payload: JSONObject?) {
         serviceScope.launch {
             try {
+                val eventId = UUID.randomUUID().toString()
+                processedEventIds.add(eventId)
+
                 val envelope = JSONObject().apply {
+                    put("eventId", eventId)
                     put("senderDeviceId", DEVICE_ID)
                     put("senderMemberId", currentActiveMemberId)
                     put("eventType", eventType)
@@ -773,59 +821,76 @@ class FirebaseFirestoreService(context: Context? = null) {
                     }
                 }
 
-                // 1. Direct high-priority post to topic endpoint for ultra-fast instant delivery
-                val directRequest = Request.Builder()
-                    .url(BASE_URL)
-                    .header("Title", "TTS_SYNC_$eventType")
-                    .header("Priority", "5")
-                    .header("X-Priority", "5")
-                    .post(envelope.toString().toRequestBody("text/plain; charset=utf-8".toMediaType()))
-                    .build()
+                val envelopeBytes = envelope.toString().toByteArray(Charsets.UTF_8)
+                val body = envelopeBytes.toRequestBody("text/plain; charset=utf-8".toMediaType())
 
-                var success = false
-                var attempts = 0
-                while (!success && attempts < 2) {
-                    attempts++
+                for (topic in SYNC_TOPICS) {
                     try {
+                        val directRequest = Request.Builder()
+                            .url("https://ntfy.sh/$topic")
+                            .header("Title", "TTS_SYNC_$eventType")
+                            .header("Priority", "5")
+                            .header("X-Priority", "5")
+                            .post(body)
+                            .build()
+
                         httpClient.newCall(directRequest).execute().use { response ->
                             if (response.isSuccessful) {
-                                success = true
                                 _isCloudConnected.value = true
                                 _syncStatus.value = "🟢 लाइव क्लाउड सिंक कनेक्टेड"
-                                Log.d(TAG, "Fast cloud broadcast success: $eventType")
                             }
                         }
                     } catch (netEx: Exception) {
-                        Log.v(TAG, "Direct broadcast retry note: ${netEx.message}")
+                        Log.v(TAG, "Direct broadcast on topic $topic note: ${netEx.message}")
                     }
-                }
-
-                // 2. Standard ntfy JSON publishing fallback if needed
-                if (!success) {
-                    val ntfyPayload = JSONObject().apply {
-                        put("topic", SYNC_TOPIC)
-                        put("title", "TTS_SYNC_$eventType")
-                        put("message", envelope.toString())
-                        put("priority", 5)
-                    }
-
-                    val jsonRequest = Request.Builder()
-                        .url("https://ntfy.sh")
-                        .post(ntfyPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
-                        .build()
-
-                    try {
-                        httpClient.newCall(jsonRequest).execute().use { response ->
-                            if (response.isSuccessful) {
-                                success = true
-                                _isCloudConnected.value = true
-                            }
-                        }
-                    } catch (_: Exception) {}
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Network broadcast exception: ${e.message}")
             }
+        }
+    }
+
+    private suspend fun broadcastEventSync(eventType: String, payload: JSONObject?) = withContext(Dispatchers.IO) {
+        try {
+            val eventId = UUID.randomUUID().toString()
+            processedEventIds.add(eventId)
+
+            val envelope = JSONObject().apply {
+                put("eventId", eventId)
+                put("senderDeviceId", DEVICE_ID)
+                put("senderMemberId", currentActiveMemberId)
+                put("eventType", eventType)
+                put("timestamp", System.currentTimeMillis())
+                if (payload != null) {
+                    put("payload", payload)
+                }
+            }
+
+            val envelopeBytes = envelope.toString().toByteArray(Charsets.UTF_8)
+            val body = envelopeBytes.toRequestBody("text/plain; charset=utf-8".toMediaType())
+
+            for (topic in SYNC_TOPICS) {
+                try {
+                    val directRequest = Request.Builder()
+                        .url("https://ntfy.sh/$topic")
+                        .header("Title", "TTS_SYNC_$eventType")
+                        .header("Priority", "5")
+                        .header("X-Priority", "5")
+                        .post(body)
+                        .build()
+
+                    httpClient.newCall(directRequest).execute().use { response ->
+                        if (response.isSuccessful) {
+                            _isCloudConnected.value = true
+                            _syncStatus.value = "🟢 लाइव क्लाउड सिंक कनेक्टेड"
+                        }
+                    }
+                } catch (netEx: Exception) {
+                    Log.v(TAG, "Direct broadcast sync on topic $topic note: ${netEx.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Network broadcast sync exception: ${e.message}")
         }
     }
 
@@ -1040,8 +1105,8 @@ class FirebaseFirestoreService(context: Context? = null) {
                             put("totalChunks", totalChunks)
                             put("chunkData", chunk)
                         }
-                        broadcastEvent("MEMBER_PHOTO_CHUNK", chunkJson)
-                        delay(50) // slight spacing between chunks
+                        broadcastEventSync("MEMBER_PHOTO_CHUNK", chunkJson)
+                        delay(40) // sequential spacing between chunks
                     }
                 }
             } catch (e: Exception) {

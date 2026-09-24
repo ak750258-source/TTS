@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolunteerActivism
@@ -140,6 +141,7 @@ fun HomeScreen(
     onSelectDocument: (OfficialDocument) -> Unit,
     onSelectMeeting: (Meeting) -> Unit,
     onClearEntireData: () -> Unit = {},
+    onOpenSyncShare: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -414,6 +416,19 @@ fun HomeScreen(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("मीटिंग तय करें", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
                             }
+                        }
+
+                        // Data Sync & Share across devices
+                        Button(
+                            onClick = onOpenSyncShare,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth().testTag("admin_sync_share_btn")
+                        ) {
+                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("📱 अन्य डिवाइस में डेटा शेयर व सिंक करें (Live Sync)", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                         }
 
                         // Danger Action: Clear All Data (Retained & Prominently Styled)

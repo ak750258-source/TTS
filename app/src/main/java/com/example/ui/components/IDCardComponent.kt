@@ -106,21 +106,24 @@ fun MemberIDCardView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     var isBackSide by remember { mutableStateOf(false) }
+    var showPhotoChooser by remember { mutableStateOf(false) }
 
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null && onUpdatePhoto != null) {
-            coroutineScope.launch {
-                val base64 = ImageUtils.uriToBase64(context, uri)
-                if (base64 != null) {
-                    onUpdatePhoto(base64)
-                    Toast.makeText(context, "फोटो सफलतापूर्वक अपडेट हो गई और सभी फोन पर सिंक हो गई!", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
+    if (showPhotoChooser && onUpdatePhoto != null) {
+        ProfilePhotoChooserDialog(
+            isOpen = true,
+            title = "ID कार्ड फोटो बदलें",
+            subtitle = "${member.fullName} (${member.memberCode})",
+            currentPhotoUri = member.photoUri,
+            onPhotoSelected = { base64 ->
+                onUpdatePhoto(base64)
+                Toast.makeText(context, "फोटो सफलतापूर्वक अपडेट हो गई और सभी फोन पर सिंक हो गई!", Toast.LENGTH_SHORT).show()
+            },
+            onRemovePhoto = {
+                onUpdatePhoto("")
+            },
+            onDismiss = { showPhotoChooser = false }
+        )
     }
 
     Column(
@@ -139,7 +142,7 @@ fun MemberIDCardView(
                 IDCardFrontSide(
                     member = member,
                     onFlip = { isBackSide = true },
-                    onPickPhoto = if (onUpdatePhoto != null) { { photoPickerLauncher.launch("image/*") } } else null
+                    onPickPhoto = if (onUpdatePhoto != null) { { showPhotoChooser = true } } else null
                 )
             } else {
                 IDCardBackSide(member = member, onFlip = { isBackSide = false })
@@ -170,7 +173,7 @@ fun MemberIDCardView(
 
             if (onUpdatePhoto != null) {
                 Button(
-                    onClick = { photoPickerLauncher.launch("image/*") },
+                    onClick = { showPhotoChooser = true },
                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
                     modifier = Modifier.testTag("upload_photo_button")
                 ) {

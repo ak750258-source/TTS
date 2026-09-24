@@ -42,6 +42,7 @@ import com.example.ui.components.AddMemberDialog
 import com.example.ui.components.AddNoticeDialog
 import com.example.ui.components.AdminLoginDialog
 import com.example.ui.components.AwardBestPerformerDialog
+import com.example.ui.components.DataSyncShareDialog
 import com.example.ui.components.DistributeDesignationDialog
 import com.example.ui.components.DocumentViewerDialog
 import com.example.ui.components.EditDonationRecordDialog
@@ -181,6 +182,7 @@ fun TTSMainApp(
     var showAddDonationDialog by remember { mutableStateOf(false) }
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var showAddDocumentDialog by remember { mutableStateOf(false) }
+    var showDataSyncShareDialog by remember { mutableStateOf(false) }
     var donationForEdit by remember { mutableStateOf<Donation?>(null) }
     var expenseForEdit by remember { mutableStateOf<Expense?>(null) }
     var memberForDesignation by remember { mutableStateOf<Member?>(null) }
@@ -192,7 +194,7 @@ fun TTSMainApp(
 
     val anyDialogVisible = showAdminLoginDialog || showProfileSwitcher || showAddMemberDialog ||
             showSelfRegisterDialog || showAddMeetingDialog || showAddNoticeDialog ||
-            showAddDonationDialog || showAddExpenseDialog || showAddDocumentDialog || donationForEdit != null ||
+            showAddDonationDialog || showAddExpenseDialog || showAddDocumentDialog || showDataSyncShareDialog || donationForEdit != null ||
             expenseForEdit != null || memberForDesignation != null || memberForBestPerformer != null ||
             memberForPhotoUpdate != null || memberForEdit != null || meetingForEditLink != null || viewedDocument != null
 
@@ -207,6 +209,7 @@ fun TTSMainApp(
             showAddDonationDialog -> showAddDonationDialog = false
             showAddExpenseDialog -> showAddExpenseDialog = false
             showAddDocumentDialog -> showAddDocumentDialog = false
+            showDataSyncShareDialog -> showDataSyncShareDialog = false
             donationForEdit != null -> donationForEdit = null
             expenseForEdit != null -> expenseForEdit = null
             memberForDesignation != null -> memberForDesignation = null
@@ -234,7 +237,8 @@ fun TTSMainApp(
                 onOpenAdminLogin = { showAdminLoginDialog = true },
                 onOpenProfileSwitcher = { showProfileSwitcher = true },
                 onSelectActiveMember = { viewModel.setActiveMember(it) },
-                onNavigateToTab = { viewModel.setTab(it) }
+                onNavigateToTab = { viewModel.setTab(it) },
+                onOpenSyncShareDialog = { showDataSyncShareDialog = true }
             )
         },
         bottomBar = {
@@ -293,7 +297,8 @@ fun TTSMainApp(
                         },
                         onSelectDocument = { viewedDocument = it },
                         onSelectMeeting = { viewModel.setTab(AppTab.MEETINGS) },
-                        onClearEntireData = { viewModel.clearEntireApplicationData() }
+                        onClearEntireData = { viewModel.clearEntireApplicationData() },
+                        onOpenSyncShare = { showDataSyncShareDialog = true }
                     )
                 }
 
@@ -677,6 +682,18 @@ fun TTSMainApp(
                 viewModel.updateDonationGoal(newGoal)
                 showSetGoalDialog = false
             }
+        )
+    }
+
+    // Multi-Device Data Sync & Backup Sharing Dialog
+    if (showDataSyncShareDialog) {
+        DataSyncShareDialog(
+            isCloudConnected = isCloudConnected,
+            syncStatusText = syncStatusText,
+            onTriggerCloudSync = { viewModel.triggerCloudSync() },
+            onExportAndShare = { toWhatsApp -> viewModel.exportAndShareAllData(context, toWhatsApp) },
+            onImportJson = { json, onDone -> viewModel.importDataFromJson(json, onDone) },
+            onDismiss = { showDataSyncShareDialog = false }
         )
     }
 }

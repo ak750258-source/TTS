@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.example.data.firebase.FirebaseFirestoreService
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -429,10 +430,16 @@ fun LiveChatSection(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(chatMessages, key = { it.id }) { msg ->
-                val isMe = (activeMember != null && msg.senderMemberId > 0 && msg.senderMemberId == activeMember.id) ||
-                           (activeMember != null && msg.senderName.trim().equals(activeMember.fullName.trim(), ignoreCase = true)) ||
-                           (activeMember != null && msg.senderName.contains(activeMember.fullName.take(5), ignoreCase = true))
+                val myDeviceId = FirebaseFirestoreService.getDeviceId()
+                val isMe = if (msg.senderDeviceId.isNotBlank()) {
+                    msg.senderDeviceId == myDeviceId
+                } else if (activeMember != null && msg.senderMemberId > 0) {
+                    msg.senderMemberId == activeMember.id
+                } else {
+                    activeMember != null && msg.senderName.trim().equals(activeMember.fullName.trim(), ignoreCase = true)
+                }
                 val senderMember = allMembers.firstOrNull {
+                    (msg.senderMemberId > 0 && it.id == msg.senderMemberId) ||
                     it.fullName.trim().equals(msg.senderName.trim(), ignoreCase = true) ||
                     msg.senderName.contains(it.fullName.take(5), ignoreCase = true)
                 }

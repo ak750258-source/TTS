@@ -1,10 +1,13 @@
 package com.example.ui.components
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -63,6 +66,7 @@ import androidx.compose.material3.ButtonDefaults
 import coil.compose.AsyncImage
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -887,20 +891,18 @@ fun SelfRegisterMemberDialog(
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
     var expandedWing by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    var showPhotoChooser by remember { mutableStateOf(false) }
 
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            coroutineScope.launch {
-                val base64 = ImageUtils.uriToBase64(context, uri, maxDimension = 140, quality = 55)
-                if (base64 != null) {
-                    selectedPhotoUri = base64
-                }
-            }
-        }
+    if (showPhotoChooser) {
+        ProfilePhotoChooserDialog(
+            isOpen = true,
+            title = "सदस्य प्रोफाइल फोटो",
+            subtitle = "कैमरा से फोटो खींचें या गैलरी से चुनें",
+            currentPhotoUri = selectedPhotoUri,
+            onPhotoSelected = { selectedPhotoUri = it },
+            onRemovePhoto = { selectedPhotoUri = null },
+            onDismiss = { showPhotoChooser = false }
+        )
     }
 
     Dialog(
@@ -969,7 +971,7 @@ fun SelfRegisterMemberDialog(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { photoPickerLauncher.launch("image/*") },
+                        .clickable { showPhotoChooser = true },
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = SoftMintContainer)
                 ) {
@@ -1127,6 +1129,263 @@ fun SelfRegisterMemberDialog(
     }
 }
 
+// --- PROFILE PHOTO CHOOSER DIALOG (CAMERA & GALLERY) ---
+@Composable
+fun ProfilePhotoChooserDialog(
+    isOpen: Boolean,
+    title: String = "प्रोफाइल फोटो चुनें",
+    subtitle: String = "कैमरा से फोटो खींचें या गैलरी से चुनें",
+    currentPhotoUri: String? = null,
+    onPhotoSelected: (String) -> Unit,
+    onRemovePhoto: (() -> Unit)? = null,
+    onDismiss: () -> Unit
+) {
+    if (!isOpen) return
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && tempPhotoUri != null) {
+            isProcessing = true
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, tempPhotoUri!!, maxDimension = 300, quality = 75)
+                isProcessing = false
+                if (base64 != null) {
+                    onPhotoSelected(base64)
+                    onDismiss()
+                } else {
+                    errorMessage = "फोटो प्रोसेस नहीं हो सकी। कृपया पुनः प्रयास करें।"
+                }
+            }
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isProcessing = true
+            coroutineScope.launch {
+                val base64 = ImageUtils.uriToBase64(context, uri, maxDimension = 300, quality = 75)
+                isProcessing = false
+                if (base64 != null) {
+                    onPhotoSelected(base64)
+                    onDismiss()
+                } else {
+                    errorMessage = "गैलरी से फोटो लोड नहीं हो सकी।"
+                }
+            }
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val uri = ImageUtils.createTempImageUri(context)
+                tempPhotoUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                errorMessage = "कैमरा शुरू करने में त्रुटि: ${e.message}"
+            }
+        } else {
+            errorMessage = "कैमरा से फोटो लेने के लिए कैमरा अनुमति की आवश्यकता है।"
+        }
+    }
+
+    fun launchCameraAction() {
+        errorMessage = null
+        val permCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+        if (permCheck == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val uri = ImageUtils.createTempImageUri(context)
+                tempPhotoUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                errorMessage = "कैमरा शुरू करने में त्रुटि: ${e.message}"
+            }
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(SoftMintContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(text = title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimaryGreen)
+                            Text(text = subtitle, fontSize = 11.sp, color = TextSecondaryGreen)
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondaryGreen)
+                    }
+                }
+
+                if (isProcessing) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = SoftMintContainer)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), color = PrimaryGreen, strokeWidth = 2.5.dp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("साफ और उच्च गुणवत्ता फोटो प्रोसेस हो रही है...", fontSize = 12.sp, color = PineGreenDark, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                if (errorMessage != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEE2E2))
+                    ) {
+                        Text(
+                            text = errorMessage!!,
+                            color = Color(0xFFDC2626),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(12.dp),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                // Options
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Option 1: Camera
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { launchCameraAction() },
+                        colors = CardDefaults.cardColors(containerColor = SoftMintContainer),
+                        border = BorderStroke(1.5.dp, PrimaryGreen.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(PrimaryGreen),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("📸 कैमरा से फोटो खींचें", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimaryGreen)
+                                Text("सीधे कैमरे से नई और साफ फोटो लें", fontSize = 11.sp, color = TextSecondaryGreen)
+                            }
+                        }
+                    }
+
+                    // Option 2: Gallery
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { galleryLauncher.launch("image/*") },
+                        colors = CardDefaults.cardColors(containerColor = LightSageCard),
+                        border = BorderStroke(1.dp, BorderLightGreen)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldGreen),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("🖼️ गैलरी से फोटो चुनें", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimaryGreen)
+                                Text("मोबाइल गैलरी से अपनी फोटो अटैच करें", fontSize = 11.sp, color = TextSecondaryGreen)
+                            }
+                        }
+                    }
+
+                    // Option 3: Remove
+                    if (!currentPhotoUri.isNullOrBlank() && onRemovePhoto != null) {
+                        OutlinedButton(
+                            onClick = {
+                                onRemovePhoto()
+                                onDismiss()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
+                            border = BorderStroke(1.dp, Color(0xFFDC2626).copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("🗑️ फोटो हटाएं", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFDC2626))
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("रद्द करें", color = TextSecondaryGreen, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // --- UPDATE MEMBER PHOTO DIALOG ---
 @Composable
 fun UpdateMemberPhotoDialog(
@@ -1135,20 +1394,22 @@ fun UpdateMemberPhotoDialog(
     onConfirm: (photoUri: String) -> Unit
 ) {
     var photoUri by remember { mutableStateOf(member.photoUri) }
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    var showPhotoChooser by remember { mutableStateOf(false) }
 
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            coroutineScope.launch {
-                val base64 = ImageUtils.uriToBase64(context, uri)
-                if (base64 != null) {
-                    photoUri = base64
-                }
-            }
-        }
+    if (showPhotoChooser) {
+        ProfilePhotoChooserDialog(
+            isOpen = true,
+            title = "फोटो बदलें",
+            subtitle = "${member.fullName} (${member.memberCode})",
+            currentPhotoUri = photoUri,
+            onPhotoSelected = { newBase64 ->
+                photoUri = newBase64
+            },
+            onRemovePhoto = {
+                photoUri = ""
+            },
+            onDismiss = { showPhotoChooser = false }
+        )
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -1191,11 +1452,11 @@ fun UpdateMemberPhotoDialog(
 
                 Box(
                     modifier = Modifier
-                        .size(120.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .size(130.dp)
+                        .clip(RoundedCornerShape(18.dp))
                         .background(SoftMintContainer)
-                        .border(2.5.dp, GoldAccent, RoundedCornerShape(16.dp))
-                        .clickable { photoPickerLauncher.launch("image/*") },
+                        .border(2.5.dp, GoldAccent, RoundedCornerShape(18.dp))
+                        .clickable { showPhotoChooser = true },
                     contentAlignment = Alignment.Center
                 ) {
                     SafePhotoDisplay(
@@ -1205,7 +1466,7 @@ fun UpdateMemberPhotoDialog(
                         contentScale = ContentScale.Crop,
                         placeholder = {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(36.dp))
+                                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(38.dp))
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text("फोटो चुनें", fontSize = 11.sp, color = TextPrimaryGreen, fontWeight = FontWeight.Bold)
                             }
@@ -1213,13 +1474,33 @@ fun UpdateMemberPhotoDialog(
                     )
                 }
 
-                Button(
-                    onClick = { photoPickerLauncher.launch("image/*") },
-                    colors = ButtonDefaults.buttonColors(containerColor = SoftMintContainer)
+                // Two quick options: Camera or Gallery
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("गैलरी से फोटो चुनें", color = PrimaryGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Button(
+                        onClick = { showPhotoChooser = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("कैमरा / गैलरी", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+
+                    if (!photoUri.isNullOrBlank()) {
+                        OutlinedButton(
+                            onClick = { photoUri = "" },
+                            modifier = Modifier.weight(0.7f),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFFDC2626).copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626))
+                        ) {
+                            Text("हटाएं", color = Color(0xFFDC2626), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
 
                 Row(
@@ -1232,11 +1513,8 @@ fun UpdateMemberPhotoDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            if (!photoUri.isNullOrBlank()) {
-                                onConfirm(photoUri!!)
-                            }
+                            onConfirm(photoUri ?: "")
                         },
-                        enabled = !photoUri.isNullOrBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                     ) {
                         Text("सहेजें (Save Photo)", color = Color.White, fontWeight = FontWeight.Bold)
@@ -1273,21 +1551,18 @@ fun EditMemberDialog(
     var expandedBlood by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showPhotoChooser by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            coroutineScope.launch {
-                val base64 = ImageUtils.uriToBase64(context, uri)
-                if (base64 != null) {
-                    photoUri = base64
-                }
-            }
-        }
+    if (showPhotoChooser) {
+        ProfilePhotoChooserDialog(
+            isOpen = true,
+            title = "प्रोफाइल फोटो बदलें",
+            subtitle = fullName,
+            currentPhotoUri = photoUri,
+            onPhotoSelected = { photoUri = it },
+            onRemovePhoto = { photoUri = null },
+            onDismiss = { showPhotoChooser = false }
+        )
     }
 
     Dialog(
@@ -1369,7 +1644,7 @@ fun EditMemberDialog(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Color.White)
                                 .border(2.dp, GoldAccent, RoundedCornerShape(10.dp))
-                                .clickable { photoPickerLauncher.launch("image/*") },
+                                .clickable { showPhotoChooser = true },
                             contentAlignment = Alignment.Center
                         ) {
                             SafePhotoDisplay(
@@ -1398,14 +1673,14 @@ fun EditMemberDialog(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Button(
-                                    onClick = { photoPickerLauncher.launch("image/*") },
+                                    onClick = { showPhotoChooser = true },
                                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.White)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("फोटो बदलें", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text("कैमरा / गैलरी", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                                 if (!photoUri.isNullOrBlank()) {
                                     OutlinedButton(

@@ -14,6 +14,7 @@ import com.example.data.model.Member
 import com.example.data.model.Notice
 import com.example.data.model.OfficialDocument
 import com.example.data.repository.TTSRepository
+import com.example.util.DataBackupHelper
 import com.example.util.TTSNotificationHelper
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +54,33 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.triggerFullCloudSync()
             showSnackbar("🟢 सभी डिवाइस पर लाइव क्लाउड सिंक सफलतापूर्वक पूरा हुआ")
+        }
+    }
+
+    fun exportAndShareAllData(context: Context, toWhatsApp: Boolean = false) {
+        viewModelScope.launch {
+            try {
+                val json = DataBackupHelper.exportAllDataAsJson(
+                    repository.getTTSDao(),
+                    _donationGoal.value
+                )
+                DataBackupHelper.shareBackupFile(context, json, toWhatsApp)
+                showSnackbar("📤 डेटा बैकअप फाइल तैयार है")
+            } catch (e: Exception) {
+                showSnackbar("शेयरिंग में समस्या: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun importDataFromJson(jsonString: String, onComplete: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val (success, message) = DataBackupHelper.importDataFromJson(
+                jsonString,
+                repository.getTTSDao(),
+                repository.firestoreService
+            )
+            showSnackbar(message)
+            onComplete(success, message)
         }
     }
 

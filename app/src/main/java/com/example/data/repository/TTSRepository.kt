@@ -33,18 +33,56 @@ class TTSRepository(
         firestoreService.fetchCatchupEvents()
     }
 
-    suspend fun syncAllMembersToCloud() {
-        val list = ttsDao.getAllMembersList()
-        list.forEach { member ->
-            firestoreService.syncMemberToCloud(member)
-            kotlinx.coroutines.delay(25)
+    suspend fun syncAllDataToCloud() {
+        firestoreService.syncDonationGoalToCloud(firestoreService.getSavedDonationGoal())
+
+        val members = ttsDao.getAllMembersList()
+        members.forEach { m ->
+            firestoreService.syncMemberToCloud(m)
+            kotlinx.coroutines.delay(20)
+        }
+
+        val donations = ttsDao.getAllDonationsList()
+        donations.forEach { don ->
+            firestoreService.syncDonationToCloud(don)
+            kotlinx.coroutines.delay(20)
+        }
+
+        val expenses = ttsDao.getAllExpensesList()
+        expenses.forEach { exp ->
+            firestoreService.syncExpenseToCloud(exp)
+            kotlinx.coroutines.delay(20)
+        }
+
+        val notices = ttsDao.getAllNoticesList()
+        notices.forEach { n ->
+            firestoreService.syncNoticeToCloud(n)
+            kotlinx.coroutines.delay(20)
+        }
+
+        val meetings = ttsDao.getAllMeetingsList()
+        meetings.forEach { mtg ->
+            firestoreService.syncMeetingToCloud(mtg)
+            kotlinx.coroutines.delay(20)
+        }
+
+        val docs = ttsDao.getAllDocumentsList()
+        docs.forEach { d ->
+            firestoreService.syncDocumentToCloud(d)
+            kotlinx.coroutines.delay(20)
+        }
+
+        val chats = ttsDao.getAllChatMessagesList()
+        chats.takeLast(40).forEach { msg ->
+            firestoreService.syncChatMessageToCloud(msg)
+            kotlinx.coroutines.delay(15)
         }
     }
 
     suspend fun triggerFullCloudSync() {
         firestoreService.fetchCatchupEvents()
         firestoreService.requestDataSync()
-        syncAllMembersToCloud()
+        syncAllDataToCloud()
     }
 
     init {
@@ -168,13 +206,11 @@ class TTSRepository(
             }
         )
 
-        // Sync Chat from Cloud across all channels and global stream immediately
-        listOf("general", "rabi_ul_awwal", "donations", "announcements", "duas", "management", "all").forEach { ch ->
-            firestoreService.listenToChat(ch) { messages ->
-                if (messages.isNotEmpty()) {
-                    repositoryScope.launch {
-                        ttsDao.insertChatMessages(messages)
-                    }
+        // Sync Chat from Cloud across all channels via global 'all' stream
+        firestoreService.listenToChat("all") { messages ->
+            if (messages.isNotEmpty()) {
+                repositoryScope.launch {
+                    ttsDao.insertChatMessages(messages)
                 }
             }
         }
@@ -272,13 +308,7 @@ class TTSRepository(
     }
 
     fun listenToChannelChat(channelId: String) {
-        firestoreService.listenToChat(channelId) { messages ->
-            if (messages.isNotEmpty()) {
-                repositoryScope.launch {
-                    ttsDao.insertChatMessages(messages)
-                }
-            }
-        }
+        // Continuous sync is maintained across channels via the unified cloud event stream
     }
 
     // Members
@@ -518,4 +548,6 @@ class TTSRepository(
     fun getSavedDonationGoal(): Double {
         return firestoreService.getSavedDonationGoal()
     }
+
+    fun getTTSDao(): TTSDao = ttsDao
 }
