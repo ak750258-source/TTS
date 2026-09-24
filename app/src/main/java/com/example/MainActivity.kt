@@ -349,6 +349,7 @@ fun TTSMainApp(
                         onSelectChannel = { viewModel.selectChatChannel(it) },
                         onSendMessage = { msg -> viewModel.sendChatMessage(msg) },
                         onDeleteChatMessage = { id, channel -> viewModel.deleteChatMessage(id, channel) },
+                        onMarkMessageSeen = { id, channel -> viewModel.markChatMessageSeen(id, channel) },
                         onOpenAddMeeting = { showAddMeetingDialog = true },
                         onOpenAdminLogin = { showAdminLoginDialog = true },
                         onDeleteMeeting = { id -> viewModel.deleteMeeting(id) },

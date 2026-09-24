@@ -55,6 +55,7 @@ class FirebaseFirestoreService(context: Context? = null) {
         private const val TAG = "CloudSyncEngine"
         private const val PRIMARY_TOPIC = "tts_12rabiulawwal_live_sync_v6"
         private const val BACKUP_TOPIC = "tts_committee_budaun_12rabi_v6"
+        private const val PRESENCE_TOPIC = "tts_12rabiulawwal_presence_v6"
         private val SYNC_TOPICS = listOf(PRIMARY_TOPIC, BACKUP_TOPIC)
         private const val BASE_URL = "https://ntfy.sh/$PRIMARY_TOPIC"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
@@ -145,6 +146,7 @@ class FirebaseFirestoreService(context: Context? = null) {
 
     private val chatListeners = ConcurrentHashMap<String, MutableList<(List<ChatMessage>) -> Unit>>()
     private val chatDeleteListeners = mutableListOf<(Long) -> Unit>()
+    private val chatDeliveredListeners = mutableListOf<(Long, String) -> Unit>()
     private val chatSeenListeners = mutableListOf<(Long, String) -> Unit>()
     private val chatClearListeners = mutableListOf<() -> Unit>()
     private val syncRequestListeners = mutableListOf<() -> Unit>()
@@ -302,8 +304,9 @@ class FirebaseFirestoreService(context: Context? = null) {
                 // Fetch events from recent cache across all topics so any newly opened device catches up on all data
                 for (topic in SYNC_TOPICS) {
                     val pollUrls = listOf(
-                        "https://ntfy.sh/$topic/json?poll=1&since=7d",
-                        "https://ntfy.sh/$topic/json?poll=1&since=24h"
+                        "https://ntfy.sh/$topic/json?poll=1&since=all",
+                        "https://ntfy.sh/$topic/json?poll=1",
+                        "https://ntfy.sh/$topic/json?poll=1&since=12h"
                     )
                     for (pollUrl in pollUrls) {
                         try {
@@ -324,6 +327,18 @@ class FirebaseFirestoreService(context: Context? = null) {
                         }
                     }
                 }
+                // Also poll presence topic
+                try {
+                    val request = Request.Builder().url("https://ntfy.sh/$PRESENCE_TOPIC/json?poll=1&since=10m").build()
+                    httpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            for (line in body.split("\n")) {
+                                if (line.isNotBlank()) parseAndDispatchRawJsonLine(line)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
             } catch (e: Exception) {
                 Log.w(TAG, "Catch-up poll note: ${e.message}")
             } finally {
@@ -344,7 +359,7 @@ class FirebaseFirestoreService(context: Context? = null) {
             delay(3000)
             while (isActive) {
                 try {
-                    val sinceParam = lastPolledTimeSeconds
+                    val sinceParam = (System.currentTimeMillis() - 60_000L) / 1000L
                     for (topic in SYNC_TOPICS) {
                         val pollUrl = "https://ntfy.sh/$topic/json?poll=1&since=$sinceParam"
                         val request = Request.Builder().url(pollUrl).build()
@@ -360,7 +375,20 @@ class FirebaseFirestoreService(context: Context? = null) {
                             }
                         }
                     }
-                    lastPolledTimeSeconds = (System.currentTimeMillis() - 30_000L) / 1000L
+                    // Also check presence topic
+                    try {
+                        val presUrl = "https://ntfy.sh/$PRESENCE_TOPIC/json?poll=1&since=$sinceParam"
+                        val request = Request.Builder().url(presUrl).build()
+                        httpClient.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val body = response.body?.string() ?: ""
+                                for (line in body.split("\n")) {
+                                    if (line.isNotBlank()) parseAndDispatchRawJsonLine(line)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                    lastPolledTimeSeconds = sinceParam
                 } catch (e: Exception) {
                     Log.v(TAG, "Fast poller note: ${e.message}")
                 }
@@ -505,8 +533,25 @@ class FirebaseFirestoreService(context: Context? = null) {
                                 }
                             }
 
-                            // Emit read receipt only for fresh incoming live messages from other devices
-                            if (!isCatchupSyncActive && isFromAnotherDevice && (System.currentTimeMillis() - msg.timestamp < 60_000L)) {
+                            // Automatically acknowledge message delivery back to sender
+                            if (isFromAnotherDevice) {
+                                serviceScope.launch {
+                                    try {
+                                        val ackPayload = JSONObject().apply {
+                                            put("messageId", msg.id)
+                                            put("channelId", msg.channelId)
+                                            put("deliveredToDeviceId", DEVICE_ID)
+                                            put("timestamp", System.currentTimeMillis())
+                                        }
+                                        broadcastEvent("CHAT_DELIVERED", ackPayload)
+                                    } catch (e: Exception) {
+                                        Log.v(TAG, "DELIVERED ACK note: ${e.message}")
+                                    }
+                                }
+                            }
+
+                            // Emit read receipt for messages from other devices
+                            if (!isCatchupSyncActive && isFromAnotherDevice) {
                                 serviceScope.launch {
                                     try {
                                         val seenPayload = JSONObject().apply {
@@ -533,6 +578,15 @@ class FirebaseFirestoreService(context: Context? = null) {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+                "CHAT_DELIVERED" -> {
+                    val messageId = payload?.optLong("messageId", 0L) ?: 0L
+                    val channelId = payload?.optString("channelId", "general") ?: "general"
+                    if (messageId > 0) {
+                        synchronized(chatDeliveredListeners) {
+                            chatDeliveredListeners.forEach { it(messageId, channelId) }
                         }
                     }
                 }
@@ -911,10 +965,40 @@ class FirebaseFirestoreService(context: Context? = null) {
             put("memberName", memberName)
             put("isOnline", isOnline)
         }
-        broadcastEvent("PRESENCE_PING", json)
+        broadcastPresenceEvent(json)
+    }
+
+    private fun broadcastPresenceEvent(payload: JSONObject) {
+        serviceScope.launch {
+            try {
+                val envelope = JSONObject().apply {
+                    put("eventId", UUID.randomUUID().toString())
+                    put("senderDeviceId", DEVICE_ID)
+                    put("senderMemberId", currentActiveMemberId)
+                    put("eventType", "PRESENCE_PING")
+                    put("timestamp", System.currentTimeMillis())
+                    put("payload", payload)
+                }
+                val body = envelope.toString().toByteArray(Charsets.UTF_8).toRequestBody("text/plain; charset=utf-8".toMediaType())
+                val request = Request.Builder()
+                    .url("https://ntfy.sh/$PRESENCE_TOPIC")
+                    .header("Title", "TTS_SYNC_PRESENCE")
+                    .post(body)
+                    .build()
+                httpClient.newCall(request).execute().close()
+            } catch (e: Exception) {
+                Log.v(TAG, "Presence ping broadcast note: ${e.message}")
+            }
+        }
     }
 
     // --- LISTENERS REGISTRATION ---
+    fun listenToChatDelivered(onChatDelivered: (Long, String) -> Unit) {
+        synchronized(chatDeliveredListeners) {
+            chatDeliveredListeners.add(onChatDelivered)
+        }
+    }
+
     fun listenToMembers(
         onMembersUpdated: (List<Member>) -> Unit,
         onMemberDeleted: (Long) -> Unit = {}
@@ -1327,6 +1411,10 @@ class FirebaseFirestoreService(context: Context? = null) {
                 put("isSeen", message.isSeen)
             }
             broadcastEvent("CHAT_MESSAGE", json)
+            // Immediately mark as DELIVERED to cloud locally so double tick updates
+            synchronized(chatDeliveredListeners) {
+                chatDeliveredListeners.forEach { it(message.id, message.channelId) }
+            }
         }
     }
 

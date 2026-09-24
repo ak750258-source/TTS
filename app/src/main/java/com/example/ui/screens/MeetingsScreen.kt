@@ -116,6 +116,7 @@ fun MeetingsScreen(
     onSelectChannel: (String) -> Unit,
     onSendMessage: (String) -> Unit,
     onDeleteChatMessage: (Long, String) -> Unit = { _, _ -> },
+    onMarkMessageSeen: (Long, String) -> Unit = { _, _ -> },
     onOpenAddMeeting: () -> Unit,
     onOpenAdminLogin: () -> Unit,
     onDeleteMeeting: (Long) -> Unit,
@@ -166,6 +167,7 @@ fun MeetingsScreen(
                 onSelectChannel = onSelectChannel,
                 onSendMessage = onSendMessage,
                 onDeleteChatMessage = onDeleteChatMessage,
+                onMarkMessageSeen = onMarkMessageSeen,
                 onOpenProfileSwitcher = onOpenProfileSwitcher,
                 onClearChat = onClearChat
             )
@@ -194,12 +196,30 @@ fun LiveChatSection(
     onSelectChannel: (String) -> Unit,
     onSendMessage: (String) -> Unit,
     onDeleteChatMessage: (Long, String) -> Unit = { _, _ -> },
+    onMarkMessageSeen: (Long, String) -> Unit = { _, _ -> },
     onOpenProfileSwitcher: () -> Unit,
     onClearChat: () -> Unit = {}
 ) {
     var inputText by remember { mutableStateOf("") }
     var messageToDelete by remember { mutableStateOf<ChatMessage?>(null) }
     val listState = rememberLazyListState()
+
+    // Automatically acknowledge seen status for unread messages from other members
+    LaunchedEffect(chatMessages) {
+        val myDeviceId = FirebaseFirestoreService.getDeviceId()
+        chatMessages.forEach { msg ->
+            val isFromOther = if (msg.senderDeviceId.isNotBlank()) {
+                msg.senderDeviceId != myDeviceId
+            } else if (activeMember != null && msg.senderMemberId > 0) {
+                msg.senderMemberId != activeMember.id
+            } else {
+                activeMember != null && !msg.senderName.trim().equals(activeMember.fullName.trim(), ignoreCase = true)
+            }
+            if (isFromOther && (!msg.isSeen || msg.status != "SEEN")) {
+                onMarkMessageSeen(msg.id, msg.channelId)
+            }
+        }
+    }
 
     val onlineMemberList = remember(allMembers, onlineCandidateIds) {
         val list = allMembers.filter { onlineCandidateIds.contains(it.id) }
@@ -544,20 +564,60 @@ fun LiveChatSection(
                                     if (isMe) {
                                         if (msg.isSeen || msg.status == "SEEN") {
                                             // Double Tick (Seen / Read - Cyan Blue)
-                                            Icon(
-                                                Icons.Default.DoneAll,
-                                                contentDescription = "देखा गया (Seen - Double Tick)",
-                                                tint = Color(0xFF67E8F9),
-                                                modifier = Modifier.size(14.dp)
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.DoneAll,
+                                                    contentDescription = "देखा गया",
+                                                    tint = Color(0xFF67E8F9),
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Text(
+                                                    text = "देखा गया",
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF67E8F9)
+                                                )
+                                            }
+                                        } else if (msg.status == "DELIVERED") {
+                                            // Double Tick (Delivered to devices - White/Light Grey)
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.DoneAll,
+                                                    contentDescription = "डिलीवर हुआ",
+                                                    tint = Color.White.copy(alpha = 0.95f),
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Text(
+                                                    text = "डिलीवर",
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color.White.copy(alpha = 0.95f)
+                                                )
+                                            }
                                         } else {
                                             // Single Tick (Sent / Delivered to cloud)
-                                            Icon(
-                                                Icons.Default.Check,
-                                                contentDescription = "भेजा गया (Sent - Single Tick)",
-                                                tint = Color.White.copy(alpha = 0.85f),
-                                                modifier = Modifier.size(12.dp)
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = "भेजा गया",
+                                                    tint = Color.White.copy(alpha = 0.85f),
+                                                    modifier = Modifier.size(11.dp)
+                                                )
+                                                Text(
+                                                    text = "भेजा गया",
+                                                    fontSize = 8.sp,
+                                                    color = Color.White.copy(alpha = 0.85f)
+                                                )
+                                            }
                                         }
                                     }
                                 }

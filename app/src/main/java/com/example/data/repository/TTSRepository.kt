@@ -222,6 +222,13 @@ class TTSRepository(
             }
         }
 
+        // Real-time Chat message DELIVERED (Double Tick) across devices
+        firestoreService.listenToChatDelivered { messageId, _ ->
+            repositoryScope.launch {
+                ttsDao.markMessageDelivered(messageId)
+            }
+        }
+
         // Real-time Chat message SEEN (Double Tick) across devices
         firestoreService.listenToChatSeen { messageId, _ ->
             repositoryScope.launch {
@@ -289,6 +296,12 @@ class TTSRepository(
                 docs.forEach { d ->
                     firestoreService.syncDocumentToCloud(d)
                     kotlinx.coroutines.delay(20)
+                }
+
+                val chats = ttsDao.getAllChatMessagesList()
+                chats.takeLast(40).forEach { msg ->
+                    firestoreService.syncChatMessageToCloud(msg)
+                    kotlinx.coroutines.delay(15)
                 }
             }
         }

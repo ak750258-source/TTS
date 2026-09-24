@@ -815,22 +815,51 @@ class TTSViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // Trigger immediate cloud catchup and sync so all members and chats load instantly
+        viewModelScope.launch {
+            try {
+                repository.triggerCloudCatchup()
+                kotlinx.coroutines.delay(1000)
+                repository.triggerFullCloudSync()
+            } catch (e: Exception) {
+                // Graceful fallback
+            }
+        }
+
         // Automatically load and lock the saved profile for this device
         viewModelScope.launch {
             try {
                 val prefs = getApplication<Application>().getSharedPreferences("tts_device_prefs", Context.MODE_PRIVATE)
                 val savedMemberId = prefs.getLong("my_locked_member_id", -1L)
                 members.collect { memberList ->
-                    if (savedMemberId > 0 && _currentActiveMember.value == null) {
-                        val found = memberList.find { it.id == savedMemberId }
-                        if (found != null) {
-                            _currentActiveMember.value = found
-                            repository.updateCandidatePresence(found.id, found.fullName, true)
-                        }
-                    } else if (_currentActiveMember.value != null) {
-                        val updated = memberList.find { it.id == _currentActiveMember.value?.id }
-                        if (updated != null) {
-                            _currentActiveMember.value = updated
+                    if (memberList.isNotEmpty()) {
+                        if (savedMemberId > 0 && _currentActiveMember.value == null) {
+                            val found = memberList.find { it.id == savedMemberId }
+                            if (found != null) {
+                                _currentActiveMember.value = found
+                                if (_selectedMemberForIDCard.value == null) {
+                                    _selectedMemberForIDCard.value = found
+                                }
+                                repository.updateCandidatePresence(found.id, found.fullName, true)
+                            }
+                        } else if (_currentActiveMember.value == null) {
+                            // Default to first member so ID card and chat are functional
+                            val defaultMember = memberList.firstOrNull()
+                            if (defaultMember != null) {
+                                _currentActiveMember.value = defaultMember
+                                if (_selectedMemberForIDCard.value == null) {
+                                    _selectedMemberForIDCard.value = defaultMember
+                                }
+                                repository.updateCandidatePresence(defaultMember.id, defaultMember.fullName, true)
+                            }
+                        } else {
+                            val updated = memberList.find { it.id == _currentActiveMember.value?.id }
+                            if (updated != null) {
+                                _currentActiveMember.value = updated
+                                if (_selectedMemberForIDCard.value?.id == updated.id) {
+                                    _selectedMemberForIDCard.value = updated
+                                }
+                            }
                         }
                     }
                 }

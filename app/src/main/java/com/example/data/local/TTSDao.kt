@@ -195,6 +195,9 @@ interface TTSDao {
     @Query("UPDATE chat_messages SET isSeen = 1, status = 'SEEN' WHERE id = :id")
     suspend fun markMessageSeen(id: Long)
 
+    @Query("UPDATE chat_messages SET status = 'DELIVERED' WHERE id = :id AND status != 'SEEN'")
+    suspend fun markMessageDelivered(id: Long)
+
     @Query("UPDATE chat_messages SET isSeen = 1, status = 'SEEN' WHERE id IN (:ids)")
     suspend fun markMessagesSeen(ids: List<Long>)
 
