@@ -330,8 +330,10 @@ class TTSRepository(
     suspend fun getMemberById(id: Long): Member? = ttsDao.getMemberById(id)
     
     suspend fun insertMember(member: Member): Long {
-        val id = ttsDao.insertMember(member)
-        val saved = member.copy(id = id)
+        val uniqueId = if (member.id > 0) member.id else (System.currentTimeMillis() + (1..999).random().toLong())
+        val withId = member.copy(id = uniqueId)
+        val id = ttsDao.insertMember(withId)
+        val saved = withId.copy(id = id)
         firestoreService.syncMemberToCloud(saved)
         return id
     }

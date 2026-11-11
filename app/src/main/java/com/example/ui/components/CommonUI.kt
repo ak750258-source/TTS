@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -378,7 +379,8 @@ fun TTSAppHeader(
                                     text = if (isAdminLoggedIn) "👑 $currentRole" else currentRole,
                                     fontSize = 9.sp,
                                     color = PrimaryGreen,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -396,21 +398,25 @@ fun TTSBottomNavigationBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
         color = Color.White,
         shadowElevation = 4.dp
     ) {
         NavigationBar(
-            modifier = Modifier.border(1.dp, BorderLightGreen),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, BorderLightGreen),
             containerColor = Color.White,
             tonalElevation = 0.dp
         ) {
             val items = listOf(
                 Triple(AppTab.HOME, Icons.Default.Home, "मुख्य"),
                 Triple(AppTab.MEMBERS, Icons.Default.Groups, "सदस्य"),
-                Triple(AppTab.ID_CARD, Icons.Default.Badge, "ID कार्ड"),
-                Triple(AppTab.MEETINGS, Icons.Default.Chat, "बैठक व चैट"),
-                Triple(AppTab.NOTICES, Icons.Default.Campaign, "सूचनाएं"),
+                Triple(AppTab.ID_CARD, Icons.Default.Badge, "कार्ड"),
+                Triple(AppTab.MEETINGS, Icons.Default.Chat, "चैट"),
+                Triple(AppTab.NOTICES, Icons.Default.Campaign, "सूचना"),
                 Triple(AppTab.DONATIONS, Icons.Default.VolunteerActivism, "चंदा")
             )
 
@@ -429,10 +435,13 @@ fun TTSBottomNavigationBar(
                     label = {
                         Text(
                             text = label,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                         )
                     },
+                    alwaysShowLabel = true,
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = PrimaryGreen,
                         selectedTextColor = PrimaryGreen,

@@ -629,52 +629,52 @@ fun HomeScreen(
             }
         }
 
-        // Urgent Hindi Noticeboard Card
-        if (urgentNotice != null) {
-            item {
-                Card(
+        // Live Official Noticeboard Card (Always Visible)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { onNavigateToTab(AppTab.NOTICES) },
+                colors = CardDefaults.cardColors(containerColor = NoticeMintContainer),
+                border = CardDefaults.outlinedCardBorder().copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(BorderContainerGreen)
+                )
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onNavigateToTab(AppTab.NOTICES) },
-                    colors = CardDefaults.cardColors(containerColor = NoticeMintContainer),
-                    border = CardDefaults.outlinedCardBorder().copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(BorderContainerGreen)
-                    )
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Text(
+                            text = "📢 आधिकारिक सूचना पट्ट (LIVE NOTICE BOARD)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DeepForestGreen,
+                            letterSpacing = 0.5.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(UrgentRedBg)
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "आधिकारिक सूचना पट्ट (NOTICE)",
-                                fontSize = 11.sp,
+                                text = "12 रबी-उल-अव्वल",
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = DeepForestGreen,
-                                letterSpacing = 0.5.sp
+                                color = UrgentRed
                             )
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(UrgentRedBg)
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "12 रबी-उल-अव्वल",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = UrgentRed
-                                )
-                            }
                         }
+                    }
 
+                    if (urgentNotice != null) {
                         Text(
                             text = urgentNotice.title,
                             fontSize = 14.sp,
@@ -704,6 +704,40 @@ fun HomeScreen(
                             )
                             Text(
                                 text = "पूरी सूचना पढ़ें →",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryGreen
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "कमेटी सूचना पट्ट सक्रिय है",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimaryGreen
+                        )
+
+                        Text(
+                            text = "जुलूस-ए-मोहम्मदी एवं लंगर-ए-पाक से संबंधित सभी महत्वपूर्ण घोषणाएं यहाँ लाइव प्रसारित होंगी। सूचना जारी करने अथवा देखने हेतु टैप करें।",
+                            fontSize = 12.sp,
+                            color = TextSecondaryGreen,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "🟢 लाइव क्लाउड सिंक",
+                                fontSize = 10.sp,
+                                color = EmeraldGreen,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "सभी सूचनाएं देखें / जारी करें →",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = PrimaryGreen
@@ -1031,6 +1065,51 @@ fun HomeScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("+ खर्च", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (donations.isNotEmpty()) {
+                        HorizontalDivider(color = BorderLightGreen.copy(alpha = 0.6f))
+                        Text(
+                            text = "हालिया चंदा प्रविष्टियाँ (Live Receipts):",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimaryGreen
+                        )
+                        donations.take(3).forEach { don ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SoftMintContainer.copy(alpha = 0.5f))
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = don.donorName,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = TextPrimaryGreen,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${don.purpose} • ${don.date}",
+                                        fontSize = 10.sp,
+                                        color = TextSecondaryGreen,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = "₹${don.amount.toInt()}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = EmeraldGreen
+                                )
+                            }
                         }
                     }
                 }

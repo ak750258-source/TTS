@@ -1,0 +1,194 @@
+{
+  "entities": {
+    "Member": {
+      "title": "Member",
+      "description": "TTS Committee Member Profile and Designation",
+      "type": "object",
+      "properties": {
+        "memberId": { "type": "number", "description": "Unique numeric member ID" },
+        "memberCode": { "type": "string", "description": "Official TTS member code" },
+        "fullName": { "type": "string", "description": "Full name of committee member" },
+        "designation": { "type": "string", "description": "Role / designation in committee" },
+        "committeeWing": { "type": "string", "description": "Assigned committee wing" },
+        "phoneNumber": { "type": "string", "description": "Contact phone number" },
+        "email": { "type": "string", "description": "Email address" },
+        "bloodGroup": { "type": "string", "description": "Blood group" },
+        "joinDate": { "type": "string", "description": "Join date display" },
+        "address": { "type": "string", "description": "Residential address" },
+        "emergencyContact": { "type": "string", "description": "Emergency contact number" },
+        "avatarColorIndex": { "type": "number", "description": "Avatar background color index" },
+        "isActive": { "type": "boolean", "description": "Active membership status" },
+        "isBestPerformer": { "type": "boolean", "description": "Best performer badge status" },
+        "bestPerformerBadge": { "type": "string", "description": "Badge description" },
+        "photoResName": { "type": "string", "description": "Drawable asset reference name" },
+        "photoUri": { "type": "string", "description": "Member profile photo data URI" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["memberId", "fullName", "designation", "committeeWing", "phoneNumber"]
+    },
+    "Notice": {
+      "title": "Notice",
+      "description": "Official live committee notices and announcements",
+      "type": "object",
+      "properties": {
+        "noticeId": { "type": "number", "description": "Numeric notice ID" },
+        "title": { "type": "string", "description": "Notice title" },
+        "category": { "type": "string", "description": "Category of notice" },
+        "priority": { "type": "string", "description": "Priority (HIGH or NORMAL)" },
+        "issuedBy": { "type": "string", "description": "Issuing officer" },
+        "date": { "type": "string", "description": "Date display string" },
+        "content": { "type": "string", "description": "Notice text content" },
+        "isPinned": { "type": "boolean", "description": "Pin status on top of board" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["noticeId", "title", "content", "issuedBy"]
+    },
+    "Donation": {
+      "title": "Donation",
+      "description": "Chanda vivran and donation records",
+      "type": "object",
+      "properties": {
+        "donationId": { "type": "number", "description": "Numeric donation ID" },
+        "donorName": { "type": "string", "description": "Name of donor" },
+        "donorMemberCode": { "type": "string", "description": "Donor member code if member" },
+        "amount": { "type": "number", "description": "Donation amount in INR" },
+        "purpose": { "type": "string", "description": "Specific donation purpose" },
+        "paymentMode": { "type": "string", "description": "Payment mode e.g. UPI" },
+        "transactionRef": { "type": "string", "description": "Transaction reference or receipt code" },
+        "date": { "type": "string", "description": "Date display string" },
+        "timestamp": { "type": "number", "description": "Epoch timestamp" },
+        "verified": { "type": "boolean", "description": "Verified and approved by admin" },
+        "remarks": { "type": "string", "description": "Optional notes or remarks" },
+        "paymentProofUri": { "type": "string", "description": "Proof attachment URI" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["donationId", "donorName", "amount", "purpose"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Kharch vivran records for audit and transparency",
+      "type": "object",
+      "properties": {
+        "expenseId": { "type": "number", "description": "Numeric expense ID" },
+        "title": { "type": "string", "description": "Expense head / item title" },
+        "category": { "type": "string", "description": "Expense category" },
+        "amount": { "type": "number", "description": "Amount spent in INR" },
+        "spentBy": { "type": "string", "description": "Person / official who spent" },
+        "date": { "type": "string", "description": "Date display string" },
+        "timestamp": { "type": "number", "description": "Epoch timestamp" },
+        "receiptRef": { "type": "string", "description": "Bill or voucher number" },
+        "attachmentUri": { "type": "string", "description": "Receipt attachment URI" },
+        "remarks": { "type": "string", "description": "Additional remarks" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["expenseId", "title", "amount", "category"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Live real-time committee chat message",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "number", "description": "Numeric message ID" },
+        "channelId": { "type": "string", "description": "Channel identifier (general, rabi_ul_awwal, donations)" },
+        "senderName": { "type": "string", "description": "Sender name" },
+        "senderRole": { "type": "string", "description": "Sender role / designation" },
+        "senderAvatarIndex": { "type": "number", "description": "Sender avatar color index" },
+        "messageText": { "type": "string", "description": "Message text content" },
+        "timestamp": { "type": "number", "description": "Epoch timestamp" },
+        "timeDisplay": { "type": "string", "description": "Time display string" },
+        "isAnnouncement": { "type": "boolean", "description": "Admin announcement flag" },
+        "senderMemberId": { "type": "number", "description": "Member ID of sender" },
+        "senderDeviceId": { "type": "string", "description": "Sender device identifier" },
+        "status": { "type": "string", "description": "Message delivery status (SENT, DELIVERED, SEEN)" },
+        "isSeen": { "type": "boolean", "description": "Seen by peers flag" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["messageId", "channelId", "senderName", "messageText"]
+    },
+    "Meeting": {
+      "title": "Meeting",
+      "description": "Committee meeting schedules and agendas",
+      "type": "object",
+      "properties": {
+        "meetingId": { "type": "number", "description": "Numeric meeting ID" },
+        "title": { "type": "string", "description": "Meeting title" },
+        "type": { "type": "string", "description": "Meeting type" },
+        "dateDisplay": { "type": "string", "description": "Date display" },
+        "timeDisplay": { "type": "string", "description": "Time display" },
+        "dateTimeMillis": { "type": "number", "description": "Date time millis" },
+        "venue": { "type": "string", "description": "Meeting venue or address" },
+        "virtualLink": { "type": "string", "description": "Google Meet or virtual link" },
+        "chairperson": { "type": "string", "description": "Chairperson name" },
+        "agenda": { "type": "string", "description": "Agenda items" },
+        "status": { "type": "string", "description": "Status (Upcoming, Completed)" },
+        "notesOrMinutes": { "type": "string", "description": "Minutes of meeting" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["meetingId", "title", "dateDisplay", "venue", "agenda"]
+    },
+    "OfficialDocument": {
+      "title": "OfficialDocument",
+      "description": "Official committee circulars, rules, and audited resolutions",
+      "type": "object",
+      "properties": {
+        "documentId": { "type": "number", "description": "Numeric document ID" },
+        "title": { "type": "string", "description": "Document title" },
+        "category": { "type": "string", "description": "Document category" },
+        "refCode": { "type": "string", "description": "Official reference number" },
+        "publishedDate": { "type": "string", "description": "Published date string" },
+        "fileSize": { "type": "string", "description": "File size label" },
+        "accessLevel": { "type": "string", "description": "Access level" },
+        "summary": { "type": "string", "description": "Summary" },
+        "fullContent": { "type": "string", "description": "Full document content" },
+        "attachmentUri": { "type": "string", "description": "Attachment URI or base64" },
+        "attachmentName": { "type": "string", "description": "Attachment filename" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["documentId", "title", "category", "refCode", "summary"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Global committee configurations like donation goal",
+      "type": "object",
+      "properties": {
+        "donationGoal": { "type": "number", "description": "Overall donation target" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp" }
+      },
+      "required": ["donationGoal"]
+    }
+  },
+  "firestore": {
+    "/members/{memberId}": {
+      "schema": { "$ref": "#/entities/Member" },
+      "description": "All committee members across devices"
+    },
+    "/notices/{noticeId}": {
+      "schema": { "$ref": "#/entities/Notice" },
+      "description": "Live notice board for community announcements"
+    },
+    "/donations/{donationId}": {
+      "schema": { "$ref": "#/entities/Donation" },
+      "description": "Live donation and chanda vivran records"
+    },
+    "/expenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/Expense" },
+      "description": "Live kharch vivran expenditure records"
+    },
+    "/chat_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Live chat messages across committee channels"
+    },
+    "/meetings/{meetingId}": {
+      "schema": { "$ref": "#/entities/Meeting" },
+      "description": "Committee meeting schedule"
+    },
+    "/documents/{documentId}": {
+      "schema": { "$ref": "#/entities/OfficialDocument" },
+      "description": "Official committee circulars and documents"
+    },
+    "/config/{configId}": {
+      "schema": { "$ref": "#/entities/AppConfig" },
+      "description": "App settings including donation goal"
+    }
+  }
+}

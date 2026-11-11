@@ -583,7 +583,7 @@ fun TTSMainApp(
                     paymentMode = mode,
                     transactionRef = ref,
                     remarks = rem,
-                    isApproved = isAdminLoggedIn,
+                    isApproved = true,
                     paymentProofUri = proof
                 )
                 showAddDonationDialog = false
